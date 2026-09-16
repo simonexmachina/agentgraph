@@ -1030,9 +1030,13 @@ async def test_fetch_feed_persists_raw_feed_payload_without_indexing(
         ),
     )
 
-    batch = await _fetch_feed("https://example.com/feed.xml")
+    batch = await _fetch_feed(
+        "https://example.com/feed.xml",
+        persist_feed_payload_only=True,
+    )
 
     feed = batch.entities[0]
+    assert len(batch.entities) == 1
     assert feed.entity_type == "Folder"
     assert feed.content == content.decode("utf-8")
     assert feed.content_searchable is False
@@ -1545,6 +1549,7 @@ async def test_rss_poll_defers_article_hydration_for_a_legacy_feed_folder() -> N
         feed_url,
         hydrate_documents=False,
         skip_existing_urls=True,
+        persist_feed_payload_only=True,
     )
 
 
@@ -1569,6 +1574,7 @@ async def test_rss_poll_hydrates_articles_after_feed_payload_is_stored() -> None
         feed_url,
         hydrate_documents=True,
         skip_existing_urls=True,
+        persist_feed_payload_only=False,
     )
 
 

@@ -267,15 +267,19 @@ class RssConnector(BaseConnector):
             logger.info("Fetching RSS feed %s", feed_url)
             try:
                 hydrate_documents = True
+                persist_feed_payload_only = False
                 if backend is not None:
                     stored_feed = await backend.get_entity_by_platform(
                         self.source, f"feed/{_feed_id(feed_url)}"
                     )
-                    hydrate_documents = _has_stored_feed_payload(stored_feed)
+                    has_stored_payload = _has_stored_feed_payload(stored_feed)
+                    hydrate_documents = has_stored_payload
+                    persist_feed_payload_only = not has_stored_payload
                 batch = await _fetch_feed(
                     feed_url,
                     hydrate_documents=hydrate_documents,
                     skip_existing_urls=skip_existing_urls,
+                    persist_feed_payload_only=persist_feed_payload_only,
                 )
             except Exception as exc:
                 logger.warning(
@@ -339,6 +343,7 @@ async def _fetch_feed(
     hydrate_documents: bool = False,
     new_documents_only: bool = False,
     skip_existing_urls: bool = False,
+    persist_feed_payload_only: bool = False,
 ) -> EntityBatch:
     parsed_result = await _parse_feed(feed_url)
     raw_content = (
@@ -360,6 +365,9 @@ async def _fetch_feed(
             retention_policy="persistent",
         )
     ]
+    if persist_feed_payload_only:
+        return EntityBatch(entities=entities)
+
     edges: list[EdgeRecord] = []
     persons: dict[str, PersonRecord] = {}
     batch = EntityBatch()
