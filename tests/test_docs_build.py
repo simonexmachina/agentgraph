@@ -307,6 +307,11 @@ async def test_command_and_mcp_reference_pages_match_runtime_interfaces() -> Non
     assert "Web is a required dependency of `agentgraph-server`" in source_for(
         "commands/list-connectors.html"
     )
+    assert "agentgraph serve" in source_for("install.html")
+    assert "agentgraph server" not in source_for("install.html")
+    demo_source = source_for("demo.html")
+    assert 'mkdir -p "$HOME/agentgraph-tmp"' in demo_source
+    assert "AGENTGRAPH_CONFIG_DIR=%s" in demo_source
     assert "get_entity_tool(entity_id, resolve=false) -> JSON string" in source_for(
         "mcp/get-entity.html"
     )

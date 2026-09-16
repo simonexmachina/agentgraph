@@ -42,10 +42,11 @@ uv tool install 'agentgraph-server[web]'
 
 ## Start the server
 
-To start the server in a terminal session, or see below for instructions on how to keep the server running in the background.
+Start the server in a terminal session. It keeps that terminal occupied; use another
+terminal for onboarding and other commands. See below to run it in the background.
 
 ```bash
-agentgraph server
+agentgraph serve
 ```
 
 ## Connect sources

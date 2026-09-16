@@ -29,8 +29,9 @@ Install the published package with `uv` and install the Graph skill:
 
 ```bash
 uv tool install 'agentgraph-server[all]'
-mkdir -p ~/agentgraph-tmp && cd ~/agentgraph-tmp
-echo "AGENTGRAPH_CONFIG_DIR=$PWD" > .env
+mkdir -p "$HOME/agentgraph-tmp"
+cd "$HOME/agentgraph-tmp"
+printf 'AGENTGRAPH_CONFIG_DIR=%s\n' "$PWD" > .env
 agentgraph install-skill --target project
 ```
 
@@ -50,9 +51,9 @@ Open a coding-agent session in the `~/agentgraph-tmp` directory and give it this
 
 > Use the agentgraph skill to answer this question: Before I reply to Maya, reconstruct the Atlas synchronization decision. What did she require, what did engineering agree, does this match the plan on Drive, and which research supports the decision? Flag contradictions and link every source.
 
-The coding agent should use the installed agentgraph skill and commands such as `agentgraph search`, `agentgraph get`, and `agentgraph traverse` to gather context from the different sources.
-
-Note that the ChatGPT app doesn't set the current working directory correctly, so you'll need to ask the agent to use set `AGENTGRAPH_CONFIG_DIR` to the demo directory.
+The local `.env` selects the demo database, so launch the coding agent from this directory.
+It should use the installed AgentGraph skill and commands such as `agentgraph search`,
+`agentgraph get`, and `agentgraph traverse` to gather context from the different sources.
 
 ### Expected evidence
 
@@ -68,7 +69,7 @@ Every claim should identify and link its source. The answer should distinguish f
 
 ## 4. Open the viewer
 
-In the configured AgentGraph directory and start the local server:
+From `~/agentgraph-tmp`, start the local server in a separate terminal:
 
 ```bash
 agentgraph serve
