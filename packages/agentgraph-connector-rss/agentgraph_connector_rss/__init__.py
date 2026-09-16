@@ -258,15 +258,23 @@ class RssConnector(BaseConnector):
         account_id: str | None = None,
         *,
         skip_existing_urls: bool = False,
+        defer_article_hydration_for_legacy_feeds: bool = False,
     ) -> EntityBatch:
         settings = load_rss_settings(account_id)
         combined = EntityBatch()
+        backend = get_backend() if defer_article_hydration_for_legacy_feeds else None
         for feed_url in settings.feed_urls:
             logger.info("Fetching RSS feed %s", feed_url)
             try:
+                hydrate_documents = True
+                if backend is not None:
+                    stored_feed = await backend.get_entity_by_platform(
+                        self.source, f"feed/{_feed_id(feed_url)}"
+                    )
+                    hydrate_documents = _has_stored_feed_payload(stored_feed)
                 batch = await _fetch_feed(
                     feed_url,
-                    hydrate_documents=True,
+                    hydrate_documents=hydrate_documents,
                     skip_existing_urls=skip_existing_urls,
                 )
             except Exception as exc:
@@ -290,7 +298,11 @@ class RssConnector(BaseConnector):
         account_id: str | None = None,
     ) -> tuple[EntityBatch, dict[str, Any]]:
         _ = cursor
-        batch = await self.ingest(account_id=account_id, skip_existing_urls=True)
+        batch = await self.ingest(
+            account_id=account_id,
+            skip_existing_urls=True,
+            defer_article_hydration_for_legacy_feeds=True,
+        )
         return batch, {"last_polled_at": datetime.now(UTC).isoformat()}
 
     async def preview_feed(self, feed_url: str, *, count: int = 3) -> dict[str, Any]:
@@ -473,6 +485,11 @@ def _article_links_from_feed_xml(content: str) -> list[str]:
         if isinstance(link, str) and link:
             links.append(link)
     return links
+
+
+def _has_stored_feed_payload(feed: Mapping[str, object] | None) -> bool:
+    content = feed.get("content") if feed is not None else None
+    return isinstance(content, str) and content.lstrip().startswith("<")
 
 
 def _rss_usage() -> str:

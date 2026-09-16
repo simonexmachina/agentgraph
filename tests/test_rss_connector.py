@@ -1090,7 +1090,7 @@ async def test_rss_fetch_feed_hydrates_linked_articles() -> None:
             "https://example.com/feed.xml",
         )
 
-    assert result is batch
+    assert result == batch
     fetch_feed.assert_awaited_once_with(
         "https://example.com/feed.xml",
         hydrate_documents=True,
@@ -1513,8 +1513,63 @@ async def test_rss_poll_skips_existing_article_urls() -> None:
         result, cursor = await connector.poll({}, account_id=None)
 
     assert result is batch
-    ingest.assert_awaited_once_with(account_id=None, skip_existing_urls=True)
+    ingest.assert_awaited_once_with(
+        account_id=None,
+        skip_existing_urls=True,
+        defer_article_hydration_for_legacy_feeds=True,
+    )
     assert "last_polled_at" in cursor
+
+
+@pytest.mark.asyncio
+async def test_rss_poll_defers_article_hydration_for_a_legacy_feed_folder() -> None:
+    feed_url = "https://example.com/feed.xml"
+    backend = MagicMock()
+    backend.get_entity_by_platform = AsyncMock(
+        return_value={"content": "RSS feed: Example Feed\nhttps://example.com/feed.xml"}
+    )
+    set_backend(backend)
+    batch = EntityBatch()
+
+    with (
+        patch(
+            "agentgraph_connector_rss.load_rss_settings",
+            return_value=RssConfig(feed_urls=[feed_url]),
+        ),
+        patch("agentgraph_connector_rss._fetch_feed", new=AsyncMock(return_value=batch)) as fetch_feed,
+    ):
+        result, _cursor = await RssConnector().poll({}, account_id=None)
+
+    assert result == batch
+    fetch_feed.assert_awaited_once_with(
+        feed_url,
+        hydrate_documents=False,
+        skip_existing_urls=True,
+    )
+
+
+@pytest.mark.asyncio
+async def test_rss_poll_hydrates_articles_after_feed_payload_is_stored() -> None:
+    feed_url = "https://example.com/feed.xml"
+    backend = MagicMock()
+    backend.get_entity_by_platform = AsyncMock(return_value={"content": "<rss><channel /></rss>"})
+    set_backend(backend)
+    batch = EntityBatch()
+
+    with (
+        patch(
+            "agentgraph_connector_rss.load_rss_settings",
+            return_value=RssConfig(feed_urls=[feed_url]),
+        ),
+        patch("agentgraph_connector_rss._fetch_feed", new=AsyncMock(return_value=batch)) as fetch_feed,
+    ):
+        await RssConnector().poll({}, account_id=None)
+
+    fetch_feed.assert_awaited_once_with(
+        feed_url,
+        hydrate_documents=True,
+        skip_existing_urls=True,
+    )
 
 
 @pytest.mark.asyncio
