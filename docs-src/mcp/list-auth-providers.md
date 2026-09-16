@@ -12,7 +12,7 @@ source_path = "docs-src/mcp/list-auth-providers.md"
 ## Signature
 
 ```text
-list_auth_providers_tool(verify=false) -> JSON string
+list_auth_providers_tool(verify=false) -> structured MCP result
 ```
 
 Set `verify=true` only when credential validity is uncertain and a live provider API

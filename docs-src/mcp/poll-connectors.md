@@ -12,7 +12,7 @@ source_path = "docs-src/mcp/poll-connectors.md"
 ## Signature
 
 ```text
-poll_connectors_tool(source = null) -> JSON string
+poll_connectors_tool(source = null) -> structured MCP result
 ```
 
 ## Arguments

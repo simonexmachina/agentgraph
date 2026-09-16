@@ -12,7 +12,7 @@ source_path = "docs-src/mcp/list-connectors.md"
 ## Signature
 
 ```text
-list_connectors_tool(verify=false) -> JSON string
+list_connectors_tool(verify=false) -> structured MCP result
 ```
 
 Use this tool when source availability, freshness, authentication, or valid platform

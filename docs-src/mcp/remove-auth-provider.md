@@ -12,7 +12,7 @@ source_path = "docs-src/mcp/remove-auth-provider.md"
 ## Signature
 
 ```text
-remove_auth_provider_tool(provider, account_id = null) -> JSON string
+remove_auth_provider_tool(provider, account_id = null) -> structured MCP result
 ```
 
 ## Parameters

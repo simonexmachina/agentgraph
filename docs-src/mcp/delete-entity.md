@@ -12,7 +12,7 @@ source_path = "docs-src/mcp/delete-entity.md"
 ## Signature
 
 ```text
-delete_entity_tool(entity_id) -> JSON string
+delete_entity_tool(entity_id) -> structured MCP result
 ```
 
 ## Returns

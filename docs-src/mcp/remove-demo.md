@@ -12,7 +12,7 @@ source_path = "docs-src/mcp/remove-demo.md"
 ## Signature
 
 ```text
-remove_demo_tool() -> JSON string
+remove_demo_tool() -> structured MCP result
 ```
 
 The tool removes only Atlas fixtures marked by the demo metadata marker and their

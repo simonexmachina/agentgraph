@@ -12,7 +12,7 @@ source_path = "docs-src/mcp/get-entity.md"
 ## Signature
 
 ```text
-get_entity_tool(entity_id, resolve=false) -> JSON string
+get_entity_tool(entity_id, resolve=false) -> structured MCP result
 ```
 
 `entity_id` accepts a full UUID, unambiguous UUID prefix, platform reference, or
@@ -22,3 +22,6 @@ for an unknown URL.
 When `resolve=true` and the entity has no title or content, the tool fetches the stub
 through its owning connector, persists the returned batch, and returns the refreshed
 entity. Direct resolution does not update `observed_at`.
+
+The entity is in `data.entity`. Its `is_stub` field makes the hydration decision
+explicit; `source_url` is present when the connector has a canonical web URL.

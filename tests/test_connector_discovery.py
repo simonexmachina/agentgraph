@@ -6,6 +6,7 @@ import asyncio
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -67,9 +68,14 @@ def test_cli_and_mcp_discover_builtin_resource_types(
         cli_result = CliRunner().invoke(app, ["list-connectors", "--json"])
         assert cli_result.exit_code == 0, cli_result.output
         cli_rows = json.loads(cli_result.output)
-        mcp_rows = json.loads(asyncio.run(list_connectors_tool()))
+        mcp_result = asyncio.run(list_connectors_tool())
         verify_auth.assert_not_called()
 
+    assert mcp_result.isError is False
+    assert mcp_result.structuredContent is not None
+    mcp_data = mcp_result.structuredContent["data"]
+    assert isinstance(mcp_data, dict)
+    mcp_rows = cast(list[dict[str, Any]], mcp_data["items"])
     assert cli_rows == mcp_rows
     assert len(cli_rows) == 1
     assert cli_rows[0]["source"] == connector.source
@@ -79,5 +85,11 @@ def test_cli_and_mcp_discover_builtin_resource_types(
     assert {item.name: item.resource_type for item in definitions} == expected_types
     assert len(definitions) == len(expected_types)
     for definition in definitions:
-        assert connector_class.entity_type_for_resource_type(definition.resource_type) == definition.name
-        assert connector_class.resource_type_for_entity_type(definition.name) == definition.resource_type
+        assert (
+            connector_class.entity_type_for_resource_type(definition.resource_type)
+            == definition.name
+        )
+        assert (
+            connector_class.resource_type_for_entity_type(definition.name)
+            == definition.resource_type
+        )

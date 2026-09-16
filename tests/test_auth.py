@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -298,16 +297,16 @@ async def test_mcp_authenticate_provider_passes_raw_connector_args(
         _run_auth_provider_flow,
     )
 
-    result = json.loads(
-        await authenticate_provider_tool(
-            "google",
-            account_id="user@example.com",
-            add=True,
-            args=["--client-id", "override-client-id"],
-        )
+    result = await authenticate_provider_tool(
+        "google",
+        account_id="user@example.com",
+        add=True,
+        args=["--client-id", "override-client-id"],
     )
 
-    assert result["authenticated"] is True
+    assert result.isError is False
+    assert result.structuredContent is not None
+    assert result.structuredContent["data"]["authenticated"] is True
     assert captured == {
         "connectors": connectors,
         "provider": "google",

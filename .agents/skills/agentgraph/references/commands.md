@@ -43,6 +43,11 @@ MCP search defaults to `refresh=false`; set it only when fresh connector-owned
 presentation metadata is needed. It does not replace a targeted source fetch for
 stale content.
 
+MCP tools return structured content: successes use `status="ok"` with a `data`
+object; expected failures use `status="error"`, an error `code`, and `message`, with
+the MCP error flag set. Search `data` includes `has_more`; entity payloads include
+`is_stub` and, when known, `source_url`.
+
 ## Stubs
 
 An entity is a stub when it has neither a title nor content. With the CLI, pass

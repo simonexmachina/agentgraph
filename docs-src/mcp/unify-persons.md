@@ -12,7 +12,7 @@ source_path = "docs-src/mcp/unify-persons.md"
 ## Signature
 
 ```text
-unify_persons_tool(primary_entity_id, duplicate_entity_ids) -> JSON string
+unify_persons_tool(primary_entity_id, duplicate_entity_ids) -> structured MCP result
 ```
 
 ## Arguments

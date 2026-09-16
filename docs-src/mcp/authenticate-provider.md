@@ -12,7 +12,7 @@ source_path = "docs-src/mcp/authenticate-provider.md"
 ## Signature
 
 ```text
-authenticate_provider_tool(provider, args = null, account_id = null, add = false) -> JSON string
+authenticate_provider_tool(provider, args = null, account_id = null, add = false) -> structured MCP result
 ```
 
 ## Arguments

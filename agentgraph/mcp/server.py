@@ -16,12 +16,25 @@ import inspect
 import json
 import logging
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Annotated, Any, cast
 
 from mcp.server.fastmcp import FastMCP
-from mcp.types import ToolAnnotations
+from mcp.types import CallToolResult, TextContent, ToolAnnotations
+from pydantic import BaseModel
 
 from agentgraph.core.context import get_backend
+from agentgraph.mcp.models import (
+    EdgesData,
+    EntityData,
+    FetchData,
+    GraphEdge,
+    SearchData,
+    SuccessData,
+    ToolData,
+    TraverseData,
+    entity_from_record,
+    entity_reference_from_record,
+)
 from agentgraph.perf import timed
 from agentgraph.query_client import HttpQueryClient, QueryClient, resolve_query_client
 
@@ -30,10 +43,10 @@ MCP_INSTRUCTIONS = """AgentGraph is a local graph of selected messages, document
 people, feeds, pages, and relationships. For source-backed questions, search broadly,
 open promising entities for full content, traverse relevant relationships, and cite
 source URLs or entity IDs. Search and query return bounded snippets; get returns the
-full stored entity. Resolve or fetch stubs and stale context only when needed. Direct
-fetch, polling, and ingest may contact configured source services and do not record
-human attention in observed_at. Inspect connector or auth state only when availability
-or freshness matters. Confirm destructive actions and Person merges with the user."""
+full stored entity. Resolve or fetch stubs and stale context only when needed. Read
+structured `data` on success; expected errors have an error flag and code. Source
+operations may contact configured services and do not record human attention in
+observed_at. Confirm destructive actions and Person merges with the user."""
 mcp = FastMCP("AgentGraph", instructions=MCP_INSTRUCTIONS)
 
 # --- Backend access -----------------------------------------------------------------
@@ -48,6 +61,26 @@ _backend_started = False
 # Strong refs to detached ingest tasks; without them the loop may collect a running
 # task mid-sweep.
 _ingest_tasks: set[asyncio.Task[None]] = set()
+
+
+def _tool_result(data: BaseModel, *, is_error: bool = False) -> CallToolResult:
+    """Return JSON text and structured content from one declared output schema."""
+    payload = data.model_dump(mode="json")
+    return CallToolResult(
+        content=[TextContent(type="text", text=json.dumps(payload))],
+        structuredContent=payload,
+        isError=is_error,
+    )
+
+
+def _success(data: Any) -> CallToolResult:
+    return _tool_result(SuccessData[Any](data=data))
+
+
+def _failure(code: str, message: str, recovery: str | None = None) -> CallToolResult:
+    from agentgraph.mcp.models import ErrorData
+
+    return _tool_result(ErrorData(code=code, message=message, recovery=recovery), is_error=True)
 
 
 async def _ensure_backend() -> None:
@@ -203,7 +236,9 @@ def entity_type_catalog_description() -> str:
         open_world=True,
     )
 )
-async def list_connectors_tool(verify: bool = False) -> str:
+async def list_connectors_tool(
+    verify: bool = False,
+) -> Annotated[CallToolResult, ToolData[dict[str, Any]]]:
     """
     List all installed connectors and their capabilities.
 
@@ -216,7 +251,7 @@ async def list_connectors_tool(verify: bool = False) -> str:
     Set verify=true only when a live provider credential check is needed.
 
     Returns:
-        JSON array of connector objects, each with:
+        Structured data with an `items` list of connector objects, each with:
           - source: platform name to pass as the platform= argument
           - description: what this connector ingests
           - entity_types: connector-declared resource entity types, including core types,
@@ -245,7 +280,7 @@ async def list_connectors_tool(verify: bool = False) -> str:
     await _ensure_backend()
     all_connectors = get_all_connectors()
     result = await connector_status_items(all_connectors, get_backend(), verify=verify)
-    return json.dumps(result)
+    return _success({"items": result})
 
 
 @mcp.tool(
@@ -257,7 +292,9 @@ async def list_connectors_tool(verify: bool = False) -> str:
         open_world=True,
     )
 )
-async def list_auth_providers_tool(verify: bool = False) -> str:
+async def list_auth_providers_tool(
+    verify: bool = False,
+) -> Annotated[CallToolResult, ToolData[dict[str, Any]]]:
     """
     List credential-backed authentication providers and their current account/auth state.
 
@@ -265,7 +302,7 @@ async def list_auth_providers_tool(verify: bool = False) -> str:
     Use list_connectors_tool to inspect all installed connectors.
 
     Returns:
-        JSON array of auth provider objects, each with:
+        Structured data with an `items` list of auth provider objects, each with:
           - provider: auth provider key such as "google" or "slack"
           - description: provider summary
           - connectors: connector sources that use this provider
@@ -281,7 +318,7 @@ async def list_auth_providers_tool(verify: bool = False) -> str:
 
     bootstrap()
     result = await auth_provider_status_items(get_all_connectors(), verify=verify)
-    return json.dumps(result)
+    return _success({"items": result})
 
 
 @mcp.tool(
@@ -293,7 +330,9 @@ async def list_auth_providers_tool(verify: bool = False) -> str:
         open_world=False,
     )
 )
-async def remove_auth_provider_tool(provider: str, account_id: str | None = None) -> str:
+async def remove_auth_provider_tool(
+    provider: str, account_id: str | None = None
+) -> Annotated[CallToolResult, ToolData[dict[str, Any]]]:
     """
     Remove stored credentials for an authentication provider.
 
@@ -309,7 +348,7 @@ async def remove_auth_provider_tool(provider: str, account_id: str | None = None
             provider are removed.
 
     Returns:
-        JSON object with provider, removed, and account_id when supplied.
+        Structured data with provider, removed, and account_id when supplied.
     """
     from agentgraph.auth.credentials import remove_platform, remove_platform_account
 
@@ -324,7 +363,7 @@ async def remove_auth_provider_tool(provider: str, account_id: str | None = None
     }
     if account_id is not None:
         result["account_id"] = account_id
-    return json.dumps(result)
+    return _success(result)
 
 
 @mcp.tool(
@@ -341,7 +380,7 @@ async def authenticate_provider_tool(
     args: list[str] | None = None,
     account_id: str | None = None,
     add: bool = False,
-) -> str:
+) -> Annotated[CallToolResult, ToolData[dict[str, Any]]]:
     """Authenticate a credential-backed provider through its connector-owned flow.
 
     This is the MCP equivalent of:
@@ -373,11 +412,11 @@ async def authenticate_provider_tool(
     try:
         output = await asyncio.to_thread(_run)
     except ValueError as exc:
-        return json.dumps({"provider": provider, "authenticated": False, "error": str(exc)})
+        return _failure("authentication_failed", str(exc))
     result: dict[str, object] = {"provider": provider, "authenticated": True}
     if output:
         result["output"] = output
-    return json.dumps(result)
+    return _success(result)
 
 
 @mcp.tool(
@@ -389,42 +428,24 @@ async def authenticate_provider_tool(
         open_world=True,
     )
 )
-async def run_connector_command_tool(source: str, args: list[str]) -> str:
+async def run_connector_command_tool(
+    source: str, args: list[str]
+) -> Annotated[CallToolResult, ToolData[dict[str, Any]]]:
     """
     Run a connector-owned command.
 
     This is the MCP equivalent of:
         agentgraph connector <source> <args...>
 
-    Core dispatches to the connector generically; the connector owns command
-    names, argument parsing, and behaviour.
+    Core dispatches generically; the connector owns command names and parsing.
 
     Args:
         source: Connector source, e.g. "rss".
-        args: Connector command and arguments, e.g.
-            ["add", "https://simonwillison.net/atom/everything/"].
-            RSS add accepts direct RSS/Atom feeds or HTML pages advertising one
-            through their first alternate RSS/Atom link, validates the resolved
-            feed before saving, and queues an RSS poll after a successful change.
-            RSS remove deletes the configured feed's local Folder and feed edges, while
-            leaving indexed articles subject to their normal retention. It accepts
-            direct configured feed URLs or pages advertising configured feeds. It is
-            available as:
-            ["remove", "https://simonwillison.net/atom/everything/"].
-            RSS OPML import is also available as:
-            ["import-opml", "/path/to/feeds.opml", "--all"] or
-            ["import-opml", "/path/to/feeds.opml", "--select", "1,3-5"].
-            Gmail historical backfill is available as ["ingest"] or
-            ["ingest", "--account", "<account-id>"]. There is no separate
-            ingest_connector_tool; ingest is connector-owned.
-            Compact one-off web fetches are available as
-            ["fetch", "https://example.com/page", "--compact"].
-            Web observation rules use ["observe", "<url-or-prefix>"] and
-            ["observe", "<url-or-prefix>", "--remove"].
-            Connector-owned help is available as ["--help"].
+        args: Connector command and arguments. Use ["--help"] to discover
+            commands for the selected source.
 
     Returns:
-        JSON object returned by the connector, or an error.
+        Structured data with source and connector result, or an error.
     """
     from agentgraph.connectors.registry import bootstrap, get_connector, get_connector_load_error
 
@@ -432,10 +453,12 @@ async def run_connector_command_tool(source: str, args: list[str]) -> str:
     connector = get_connector(source)
     if connector is None:
         if error := get_connector_load_error(source):
-            return json.dumps({"error": f"Failed to load connector {source!r}: {error}"})
-        return json.dumps({"error": f"Unknown connector {source!r}"})
+            return _failure(
+                "connector_load_failed", f"Failed to load connector {source!r}: {error}"
+            )
+        return _failure("connector_not_found", f"Unknown connector {source!r}")
     if args in (["--help"], ["help"]):
-        return json.dumps({"source": source, "help": type(connector).cli_help()})
+        return _success({"source": source, "help": type(connector).cli_help()})
     effects = None
     try:
         result = type(connector).run_cli_command(args)
@@ -454,7 +477,7 @@ async def run_connector_command_tool(source: str, args: list[str]) -> str:
             result["poll"] = await _queue_poll(connector)
         if effects.ingest:
             result["ingest"] = await _queue_ingest(connector, effects.ingest_account_id)
-        return json.dumps(result, default=str)
+        return _success({"source": source, "result": result})
     except (NotImplementedError, OSError, ValueError) as exc:
         hint = None
         if effects is not None:
@@ -462,7 +485,7 @@ async def run_connector_command_tool(source: str, args: list[str]) -> str:
 
             hint = fetch_effect_error_hint(effects, exc, "mcp")
         error = f"{exc}\n{hint}" if hint else str(exc)
-        return json.dumps({"error": error})
+        return _failure("connector_command_failed", error)
 
 
 @mcp.tool(
@@ -474,13 +497,13 @@ async def run_connector_command_tool(source: str, args: list[str]) -> str:
         open_world=False,
     )
 )
-async def add_demo_tool() -> str:
+async def add_demo_tool() -> Annotated[CallToolResult, ToolData[dict[str, Any]]]:
     """Add the fictional Atlas demo fixtures to the configured database."""
     from agentgraph.config import get_config_paths
     from agentgraph.demo import add_demo
 
     await _ensure_backend()
-    return json.dumps(await add_demo(get_config_paths()[0]))
+    return _success(await add_demo(get_config_paths()[0]))
 
 
 @mcp.tool(
@@ -492,13 +515,13 @@ async def add_demo_tool() -> str:
         open_world=False,
     )
 )
-async def remove_demo_tool() -> str:
+async def remove_demo_tool() -> Annotated[CallToolResult, ToolData[dict[str, Any]]]:
     """Remove marked Atlas demo fixtures from the configured database."""
     from agentgraph.config import get_config_paths
     from agentgraph.demo import remove_demo
 
     await _ensure_backend()
-    return json.dumps(await remove_demo(get_config_paths()[0]))
+    return _success(await remove_demo(get_config_paths()[0]))
 
 
 async def _enrich_results(results: list[dict[str, Any]]) -> None:
@@ -546,99 +569,70 @@ async def search_entities_tool(
     min_score: float = 0.03,
     refresh: bool = False,
     observed_since: str | None = None,
-) -> str:
+) -> Annotated[CallToolResult, ToolData[SearchData]]:
     """
     Search or filter the knowledge graph.
 
-    With a query, combines semantic vector similarity and full-text search via
-    Reciprocal Rank Fusion, applying every filter below as a hard predicate.
-    Without a query there is no ranking: the filters alone select entities,
-    newest first. Use this for listing all messages in a specific channel, all
-    documents on a platform, activity within a time window, or content authored
-    by the current user.
+    Use a query for ranked discovery. Omit it to list entities matching only
+    filters, newest first. Results contain bounded snippets; use
+    get_entity_tool before making source-based claims.
 
-    IMPORTANT — attachments: chat photos, images, and uploaded files are
-    stored as attachments on Message entities (in metadata.attachments).
-    Gmail email attachments are represented as Gmail Document stubs referenced
-    by the owning Email and can be downloaded with download_entity_tool.
-    If the user asks about chat uploads, pass entity_types=["Message"] and
-    has_attachments=True. If the user asks about Gmail attachments, inspect the
-    Email's referenced Document stubs.
-
-    Example — find images uploaded in the last 7 days:
-        entity_types=["Message"], has_attachments=True, since="7d"
+    To find chat uploads, use entity_types=["Message"] with
+    has_attachments=True. Gmail attachments are Document stubs referenced by
+    their Email entity.
 
     Args:
         query: Optional natural-language search query. Omit to select purely by
             the filters below.
-        entity_types: Optional list of entity types to restrict results
-            (e.g. ["Message", "Document", "Channel"]). See above for what each
-            type contains. To find chat images or attachments, pass ["Message"].
-            To find Gmail attachment stubs, pass ["Document"] and platform="gmail".
-        platform: Optional platform name to scope to a single source (e.g.
-            "slack", "discord", "gdocs", "gmail", "rss"). When omitted, all
-            platforms are searched. Use this to avoid cross-platform noise when
-            the user specifies a source.
-        filters: Optional dict of key=value filters. Known columns
-            (platform, platform_entity_id, entity_type) are applied as column
-            filters; all other keys are matched against the metadata JSONB field.
-        since: Optional time cutoff — ISO timestamp or relative duration
-            like "12h", "30m", "2d". Only returns entities updated at or after
-            this time.
-        observed_since: Optional browser observation cutoff, using the same
-            ISO timestamp or relative duration format as since. Only returns
-            entities with observed_at at or after this time, excluding entities
-            never observed. When since is also set, both cutoffs must match.
-        authored_by_me: If true, only return entities with an authored
-            edge from the current user (resolved from stored credentials).
-        has_attachments: If true, only return Message entities that have
-            at least one chat file or image attachment in metadata.attachments.
-            Ignored for non-Message entity types. Gmail attachments are
-            Document stubs instead.
-        limit: Maximum number of results. Defaults to 10 with a query and 50
-            without.
-        order_by: Optional date column to sort by descending instead of
-            relevance: created_at, updated_at, source_created_at,
-            source_updated_at, observed_at, or synced_at. With a query, results
-            are still relevance-filtered but date-sorted.
-        min_score: Minimum relevance score threshold (0–1, default 0.03).
-            Results below this score are suppressed as noise. Ignored when no
-            query is given.
-        refresh: If true, let connectors refresh or enrich connector-owned
-            presentation metadata before returning. Defaults to false to keep
-            search responsive.
+        entity_types: Entity types to include.
+        platform: Source to include.
+        filters: Exact column or metadata key/value matches.
+        since: Updated-at cutoff as an ISO timestamp or relative duration.
+        observed_since: Observation cutoff using the same format as since.
+        authored_by_me: Restrict to entities authored by the authenticated user.
+        has_attachments: Restrict to entities with attachments.
+        limit: Maximum results; defaults to 10 with a query and 50 without.
+        order_by: Date field used for descending order.
+        min_score: Relevance threshold for query search; default 0.03.
+        refresh: Refresh connector-owned presentation metadata before returning.
 
     Returns:
-        JSON array of matching entities with id, title, bounded content snippet,
-        content_truncated, platform, and (with a query) a relevance score. For
-        Message entities with attachments, each result includes
-        metadata.attachments — a JSON string that decodes to a list of
-        {url, filename, content_type, width?, height?} objects. Use
-        get_entity_tool for full stored content. Connectors may refresh or
-        enrich connector-owned metadata before results are returned.
+        Structured data containing entities, returned, limit, and has_more.
     """
     # MCP clients send non-string filter values (numbers, bools), but every
     # predicate compares against text columns or JSON scalars.
     str_filters: dict[str, str] = {k: str(v) for k, v in (filters or {}).items()}
     resolved_limit = limit if limit is not None else (10 if query else 50)
-    results = await _with_client(
-        lambda client: client.search(
-            query,
-            entity_types,
-            resolved_limit,
-            min_score,
-            platform,
-            filters=str_filters,
-            since=since,
-            observed_since=observed_since,
-            authored_by_me=authored_by_me,
-            has_attachments=has_attachments,
-            order_by=order_by,
+    try:
+        results = await _with_client(
+            lambda client: client.search(
+                query,
+                entity_types,
+                resolved_limit + 1,
+                min_score,
+                platform,
+                filters=str_filters,
+                since=since,
+                observed_since=observed_since,
+                authored_by_me=authored_by_me,
+                has_attachments=has_attachments,
+                order_by=order_by,
+            )
         )
-    )
+    except ValueError as exc:
+        return _failure("invalid_search", str(exc))
+    has_more = len(results) > resolved_limit
+    results = results[:resolved_limit]
     if refresh:
         await _enrich_results(results)
-    return json.dumps(results, default=str)
+    return _success(
+        SearchData(
+            entities=[entity_from_record(result) for result in results],
+            limit=resolved_limit,
+            returned=len(results),
+            has_more=has_more,
+        )
+    )
 
 
 mcp.tool(
@@ -670,7 +664,9 @@ mcp.tool(
         open_world=True,
     )
 )
-async def get_entity_tool(entity_id: str, resolve: bool = False) -> str:
+async def get_entity_tool(
+    entity_id: str, resolve: bool = False
+) -> Annotated[CallToolResult, ToolData[EntityData]]:
     """
     Retrieve full details for a single existing entity.
 
@@ -681,15 +677,15 @@ async def get_entity_tool(entity_id: str, resolve: bool = False) -> str:
             connector before returning. Defaults to false.
 
     Returns:
-        JSON object with all entity fields, or an error message if not found.
+        Structured data with the entity, or an error if it is not found.
     """
     try:
         entity = await _with_client(lambda client: client.get_entity(entity_id, resolve))
         if entity is None:
-            return json.dumps({"error": f"Entity {entity_id!r} not found"})
-        return json.dumps(entity, default=str)
+            return _failure("entity_not_found", f"Entity {entity_id!r} not found")
+        return _success(EntityData(entity=entity_from_record(entity)))
     except ValueError as exc:
-        return json.dumps({"error": str(exc)})
+        return _failure("invalid_entity_reference", str(exc))
 
 
 # ---------------------------------------------------------------------------
@@ -710,7 +706,7 @@ async def get_edges_tool(
     entity_id: str,
     edge_type: str | None = None,
     direction: str = "both",
-) -> str:
+) -> Annotated[CallToolResult, ToolData[EdgesData]]:
     """
     List edges connected to an entity.
 
@@ -721,17 +717,22 @@ async def get_edges_tool(
         direction: "in" (incoming), "out" (outgoing), or "both" (default).
 
     Returns:
-        JSON array of edge objects including source/target references.
+        Structured data with the canonical entity reference and its edges.
     """
     try:
         entity, edges = await _with_client(
             lambda client: client.edges(entity_id, edge_type, direction)
         )
         if entity is None:
-            return json.dumps({"error": f"Entity {entity_id!r} not found"})
-        return json.dumps(edges, default=str)
+            return _failure("entity_not_found", f"Entity {entity_id!r} not found")
+        return _success(
+            EdgesData(
+                entity=entity_reference_from_record(entity),
+                edges=[GraphEdge.model_validate(edge) for edge in edges],
+            )
+        )
     except ValueError as exc:
-        return json.dumps({"error": str(exc)})
+        return _failure("invalid_entity_reference", str(exc))
 
 
 # ---------------------------------------------------------------------------
@@ -752,7 +753,7 @@ async def traverse_graph_tool(
     entity_id: str,
     max_depth: int = 2,
     resolve: bool = False,
-) -> str:
+) -> Annotated[CallToolResult, ToolData[TraverseData]]:
     """
     Traverse the knowledge graph from a starting entity using BFS.
 
@@ -767,7 +768,7 @@ async def traverse_graph_tool(
             repeat the traversal before returning. Defaults to false.
 
     Returns:
-        JSON object with "nodes" (entities) and "edges" lists.
+        Structured data with nodes, edges, and the applied max_depth.
     """
     try:
         depth = min(max(max_depth, 0), 4)
@@ -775,7 +776,7 @@ async def traverse_graph_tool(
             lambda client: client.traverse(entity_id, depth, resolve)
         )
         if entity is None:
-            return json.dumps({"error": f"Entity {entity_id!r} not found"})
+            return _failure("entity_not_found", f"Entity {entity_id!r} not found")
 
         # Trim content on nodes to keep response size manageable.
         for node in result.get("nodes", []):
@@ -784,9 +785,15 @@ async def traverse_graph_tool(
                 node["content_truncated"] = True
             else:
                 node["content_truncated"] = False
-        return json.dumps(result, default=str)
+        return _success(
+            TraverseData(
+                nodes=[entity_from_record(node) for node in result.get("nodes", [])],
+                edges=[GraphEdge.model_validate(edge) for edge in result.get("edges", [])],
+                max_depth=depth,
+            )
+        )
     except ValueError as exc:
-        return json.dumps({"error": str(exc)})
+        return _failure("invalid_entity_reference", str(exc))
 
 
 # ---------------------------------------------------------------------------
@@ -803,7 +810,9 @@ async def traverse_graph_tool(
         open_world=True,
     )
 )
-async def fetch_entity_tool(platform: str, resource_id: str) -> str:
+async def fetch_entity_tool(
+    platform: str, resource_id: str
+) -> Annotated[CallToolResult, ToolData[FetchData]]:
     """
     Trigger a connector fetch for a platform entity.
 
@@ -815,18 +824,31 @@ async def fetch_entity_tool(platform: str, resource_id: str) -> str:
         resource_id: Platform-specific entity ID.
 
     Returns:
-        JSON object with counts of ingested entities, persons, and edges.
+        Structured data with a canonical entity reference and ingestion counts.
     """
     try:
         result = await _with_client(lambda client: client.fetch(platform, resource_id))
-        return json.dumps(result)
+        entity = result.get("entity")
+        return _success(
+            FetchData(
+                entity=entity_reference_from_record(cast(dict[str, Any], entity))
+                if isinstance(entity, dict)
+                else None,
+                entities=int(result["entities"]),
+                metadata_patches=int(result["metadata_patches"]),
+                persons=int(result["persons"]),
+                edges=int(result["edges"]),
+            )
+        )
     except ValueError as exc:
         from agentgraph.connectors.registry import get_connector
 
         connector = get_connector(platform)
-        hint = connector.fetch_error_hint(resource_id, exc, "mcp") if connector is not None else None
+        hint = (
+            connector.fetch_error_hint(resource_id, exc, "mcp") if connector is not None else None
+        )
         error = f"{exc}\n{hint}" if hint else str(exc)
-        return json.dumps({"error": error})
+        return _failure("fetch_failed", error)
 
 
 # ---------------------------------------------------------------------------
@@ -843,7 +865,7 @@ async def fetch_entity_tool(platform: str, resource_id: str) -> str:
         open_world=True,
     )
 )
-async def fetch_entity_by_id_tool(entity_id: str) -> str:
+async def fetch_entity_by_id_tool(entity_id: str) -> Annotated[CallToolResult, ToolData[FetchData]]:
     """
     Trigger a connector fetch for an entity by its internal UUID.
 
@@ -855,14 +877,24 @@ async def fetch_entity_by_id_tool(entity_id: str) -> str:
         entity_id: Internal entity UUID (the id field from graph nodes).
 
     Returns:
-        JSON object with counts of ingested entities, persons, and edges,
-        or an error message if the entity is not found.
+        Structured data with a canonical entity reference and ingestion counts.
     """
     try:
         result = await _with_client(lambda client: client.fetch_entity(entity_id))
-        return json.dumps(result)
+        entity = result.get("entity")
+        return _success(
+            FetchData(
+                entity=entity_reference_from_record(cast(dict[str, Any], entity))
+                if isinstance(entity, dict)
+                else None,
+                entities=int(result["entities"]),
+                metadata_patches=int(result["metadata_patches"]),
+                persons=int(result["persons"]),
+                edges=int(result["edges"]),
+            )
+        )
     except ValueError as exc:
-        return json.dumps({"error": str(exc)})
+        return _failure("fetch_failed", str(exc))
 
 
 # ---------------------------------------------------------------------------
@@ -879,7 +911,9 @@ async def fetch_entity_by_id_tool(entity_id: str) -> str:
         open_world=True,
     )
 )
-async def poll_connectors_tool(source: str | None = None) -> str:
+async def poll_connectors_tool(
+    source: str | None = None,
+) -> Annotated[CallToolResult, ToolData[dict[str, Any]]]:
     """
     Trigger a background poll for one connector or all polling connectors.
 
@@ -891,8 +925,7 @@ async def poll_connectors_tool(source: str | None = None) -> str:
             with poll_interval configured are polled.
 
     Returns:
-        JSON object with queued, already-running, and skipped connector sources,
-        or an error if a requested connector source is not registered.
+        Structured data with queued, already-running, and skipped connector sources.
     """
     from agentgraph.connectors.registry import bootstrap, get_all_connectors, get_connector
 
@@ -900,7 +933,7 @@ async def poll_connectors_tool(source: str | None = None) -> str:
     if source is not None:
         connector = get_connector(source)
         if connector is None:
-            return json.dumps({"error": f"No connector registered for source {source!r}"})
+            return _failure("connector_not_found", f"No connector registered for source {source!r}")
         connectors = [connector]
     else:
         connectors = get_all_connectors()
@@ -919,7 +952,7 @@ async def poll_connectors_tool(source: str | None = None) -> str:
         else:
             skipped.append({"source": connector.source, "reason": result["reason"]})
 
-    return json.dumps({"polled": polled, "already_running": already_running, "skipped": skipped})
+    return _success({"polled": polled, "already_running": already_running, "skipped": skipped})
 
 
 # ---------------------------------------------------------------------------
@@ -936,7 +969,9 @@ async def poll_connectors_tool(source: str | None = None) -> str:
         open_world=True,
     )
 )
-async def download_entity_tool(entity_id: str, output_path: str | None = None) -> str:
+async def download_entity_tool(
+    entity_id: str, output_path: str | None = None
+) -> Annotated[CallToolResult, ToolData[dict[str, Any]]]:
     """
     Download an entity's source file using the connector's stored auth.
 
@@ -951,14 +986,13 @@ async def download_entity_tool(entity_id: str, output_path: str | None = None) -
         output_path: Optional output file path or directory.
 
     Returns:
-        JSON object with path, byte count, filename, platform, and MIME type, or
-        an error message if the entity or connector cannot be downloaded.
+        Structured data with path, byte count, filename, platform, and MIME type.
     """
     try:
         result = await _with_client(lambda client: client.download(entity_id, output_path))
-        return json.dumps(result, default=str)
+        return _success(result)
     except ValueError as exc:
-        return json.dumps({"error": str(exc)})
+        return _failure("download_failed", str(exc))
 
 
 # ---------------------------------------------------------------------------
@@ -975,7 +1009,9 @@ async def download_entity_tool(entity_id: str, output_path: str | None = None) -
         open_world=True,
     )
 )
-async def bookmark_entity_tool(entity_id: str, bookmarked: bool = True) -> str:
+async def bookmark_entity_tool(
+    entity_id: str, bookmarked: bool = True
+) -> Annotated[CallToolResult, ToolData[dict[str, Any]]]:
     """
     Set or remove bookmark protection for an entity or URL.
 
@@ -989,14 +1025,13 @@ async def bookmark_entity_tool(entity_id: str, bookmarked: bool = True) -> str:
         bookmarked: True to add bookmark protection; false to remove it.
 
     Returns:
-        JSON object for the updated entity with its bookmark state, or an error
-        message if the entity cannot be found.
+        Structured data with the updated entity and its bookmark state.
     """
     try:
         result = await _with_client(lambda client: client.bookmark(entity_id, bookmarked))
-        return json.dumps(result, default=str)
+        return _success({"entity": entity_from_record(result).model_dump(mode="json")})
     except ValueError as exc:
-        return json.dumps({"error": str(exc)})
+        return _failure("bookmark_failed", str(exc))
 
 
 # ---------------------------------------------------------------------------
@@ -1013,7 +1048,7 @@ async def bookmark_entity_tool(entity_id: str, bookmarked: bool = True) -> str:
         open_world=False,
     )
 )
-async def delete_entity_tool(entity_id: str) -> str:
+async def delete_entity_tool(entity_id: str) -> Annotated[CallToolResult, ToolData[dict[str, Any]]]:
     """
     Delete an entity from the graph.
 
@@ -1025,14 +1060,21 @@ async def delete_entity_tool(entity_id: str) -> str:
         entity_id: Entity UUID, UUID prefix, platform/entity_id reference, or URL.
 
     Returns:
-        JSON object with deleted=true and the deleted entity, or an error
-        message if the entity cannot be found.
+        Structured data with deleted and the deleted entity.
     """
     try:
         result = await _with_client(lambda client: client.delete(entity_id))
-        return json.dumps(result, default=str)
+        entity = result.get("entity")
+        return _success(
+            {
+                "deleted": bool(result.get("deleted")),
+                "entity": entity_from_record(cast(dict[str, Any], entity)).model_dump(mode="json")
+                if isinstance(entity, dict)
+                else None,
+            }
+        )
     except ValueError as exc:
-        return json.dumps({"error": str(exc)})
+        return _failure("delete_failed", str(exc))
 
 
 # ---------------------------------------------------------------------------
@@ -1052,7 +1094,7 @@ async def delete_entity_tool(entity_id: str) -> str:
 async def unify_persons_tool(
     primary_entity_id: str,
     duplicate_entity_ids: list[str],
-) -> str:
+) -> Annotated[CallToolResult, ToolData[dict[str, Any]]]:
     """
     Merge duplicate Person entities that refer to the same human.
 
@@ -1067,13 +1109,21 @@ async def unify_persons_tool(
             platform refs to merge into the primary.
 
     Returns:
-        JSON object with the updated primary Person and merged duplicate IDs,
-        or an error message if any entity is missing or is not a Person.
+        Structured data with the updated primary Person and merged duplicate IDs.
     """
     try:
         result = await _with_client(
             lambda client: client.unify_persons(primary_entity_id, duplicate_entity_ids)
         )
-        return json.dumps(result, default=str)
+        primary = result.get("primary")
+        return _success(
+            {
+                "primary": entity_from_record(cast(dict[str, Any], primary)).model_dump(mode="json")
+                if isinstance(primary, dict)
+                else None,
+                "merged_ids": result.get("merged_ids", []),
+                "merged_count": result.get("merged_count", 0),
+            }
+        )
     except ValueError as exc:
-        return json.dumps({"error": str(exc)})
+        return _failure("person_merge_failed", str(exc))
