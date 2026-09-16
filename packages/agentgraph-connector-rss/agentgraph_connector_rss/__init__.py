@@ -50,6 +50,7 @@ _STALE_AFTER = 30 * 60
 _FEED_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 _MAX_FEED_BYTES = 5_000_000
 _MAX_OBSERVATION_PATTERNS_PER_FEED = 5
+_RSS_PAYLOAD_CURSOR_VERSION = 1
 _TRACKING_QUERY_KEYS = {
     "fbclid",
     "gclid",
@@ -196,8 +197,9 @@ class RssConnector(BaseConnector):
             return None
         return SourceReference(
             source=self.source,
-            resource_type="document",
-            resource_id=url,
+            resource_type="folder",
+            resource_id=f"feed/{_feed_id(url)}",
+            fetch_meta={"feed_url": url},
         )
 
     async def resolve_observation_url(
@@ -262,24 +264,14 @@ class RssConnector(BaseConnector):
     ) -> EntityBatch:
         settings = load_rss_settings(account_id)
         combined = EntityBatch()
-        backend = get_backend() if defer_article_hydration_for_legacy_feeds else None
         for feed_url in settings.feed_urls:
             logger.info("Fetching RSS feed %s", feed_url)
             try:
-                hydrate_documents = True
-                persist_feed_payload_only = False
-                if backend is not None:
-                    stored_feed = await backend.get_entity_by_platform(
-                        self.source, f"feed/{_feed_id(feed_url)}"
-                    )
-                    has_stored_payload = _has_stored_feed_payload(stored_feed)
-                    hydrate_documents = has_stored_payload
-                    persist_feed_payload_only = not has_stored_payload
                 batch = await _fetch_feed(
                     feed_url,
-                    hydrate_documents=hydrate_documents,
+                    hydrate_documents=not defer_article_hydration_for_legacy_feeds,
                     skip_existing_urls=skip_existing_urls,
-                    persist_feed_payload_only=persist_feed_payload_only,
+                    persist_feed_payload_only=defer_article_hydration_for_legacy_feeds,
                 )
             except Exception as exc:
                 logger.warning(
@@ -301,13 +293,16 @@ class RssConnector(BaseConnector):
         cursor: dict[str, Any],
         account_id: str | None = None,
     ) -> tuple[EntityBatch, dict[str, Any]]:
-        _ = cursor
+        payload_needs_upgrade = cursor.get("feed_payload_version") != _RSS_PAYLOAD_CURSOR_VERSION
         batch = await self.ingest(
             account_id=account_id,
             skip_existing_urls=True,
-            defer_article_hydration_for_legacy_feeds=True,
+            defer_article_hydration_for_legacy_feeds=payload_needs_upgrade,
         )
-        return batch, {"last_polled_at": datetime.now(UTC).isoformat()}
+        return batch, {
+            "last_polled_at": datetime.now(UTC).isoformat(),
+            "feed_payload_version": _RSS_PAYLOAD_CURSOR_VERSION,
+        }
 
     async def preview_feed(self, feed_url: str, *, count: int = 3) -> dict[str, Any]:
         return await preview_feed(feed_url, count=count)
@@ -493,11 +488,6 @@ def _article_links_from_feed_xml(content: str) -> list[str]:
         if isinstance(link, str) and link:
             links.append(link)
     return links
-
-
-def _has_stored_feed_payload(feed: Mapping[str, object] | None) -> bool:
-    content = feed.get("content") if feed is not None else None
-    return isinstance(content, str) and content.lstrip().startswith("<")
 
 
 def _rss_usage() -> str:

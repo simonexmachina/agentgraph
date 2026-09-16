@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import feedparser  # type: ignore[import-untyped]
 import pytest
 from agentgraph_connector_rss import (
+    _RSS_PAYLOAD_CURSOR_VERSION,
     FeedAuthor,
     RssConnector,
     _feed_id,
@@ -85,6 +86,21 @@ def test_rss_can_handle_configured_feed_urls() -> None:
     ):
         assert connector.can_handle("https://example.com/feed.xml")
         assert not connector.can_handle("http://example.com/rss")
+
+
+def test_rss_resolves_configured_feed_url_to_its_folder() -> None:
+    feed_url = "https://example.com/feed.xml"
+
+    with patch(
+        "agentgraph_connector_rss.load_rss_settings",
+        return_value=RssConfig(feed_urls=[feed_url]),
+    ):
+        reference = RssConnector().resolve_url(feed_url)
+
+    assert reference is not None
+    assert reference.resource_type == "folder"
+    assert reference.resource_id == f"feed/{_feed_id(feed_url)}"
+    assert reference.fetch_meta == {"feed_url": feed_url}
 
 
 def test_rss_can_handle_returns_false_without_config() -> None:
@@ -1523,16 +1539,12 @@ async def test_rss_poll_skips_existing_article_urls() -> None:
         defer_article_hydration_for_legacy_feeds=True,
     )
     assert "last_polled_at" in cursor
+    assert cursor["feed_payload_version"] == _RSS_PAYLOAD_CURSOR_VERSION
 
 
 @pytest.mark.asyncio
 async def test_rss_poll_defers_article_hydration_for_a_legacy_feed_folder() -> None:
     feed_url = "https://example.com/feed.xml"
-    backend = MagicMock()
-    backend.get_entity_by_platform = AsyncMock(
-        return_value={"content": "RSS feed: Example Feed\nhttps://example.com/feed.xml"}
-    )
-    set_backend(backend)
     batch = EntityBatch()
 
     with (
@@ -1556,9 +1568,6 @@ async def test_rss_poll_defers_article_hydration_for_a_legacy_feed_folder() -> N
 @pytest.mark.asyncio
 async def test_rss_poll_hydrates_articles_after_feed_payload_is_stored() -> None:
     feed_url = "https://example.com/feed.xml"
-    backend = MagicMock()
-    backend.get_entity_by_platform = AsyncMock(return_value={"content": "<rss><channel /></rss>"})
-    set_backend(backend)
     batch = EntityBatch()
 
     with (
@@ -1568,7 +1577,10 @@ async def test_rss_poll_hydrates_articles_after_feed_payload_is_stored() -> None
         ),
         patch("agentgraph_connector_rss._fetch_feed", new=AsyncMock(return_value=batch)) as fetch_feed,
     ):
-        await RssConnector().poll({}, account_id=None)
+        await RssConnector().poll(
+            {"feed_payload_version": _RSS_PAYLOAD_CURSOR_VERSION},
+            account_id=None,
+        )
 
     fetch_feed.assert_awaited_once_with(
         feed_url,
