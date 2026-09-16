@@ -1409,85 +1409,7 @@ async def test_fetch_feed_new_documents_only_skips_existing_article_content(
 
 
 @pytest.mark.asyncio
-async def test_fetch_feed_skip_existing_urls_omits_duplicate_article_url(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    class _Parsed:
-        bozo = False
-        feed = {"title": "Example Feed"}
-        entries = [
-            {
-                "id": "new-entry-id",
-                "title": "First Post",
-                "link": "https://example.com/first?utm_source=rss",
-            }
-        ]
-
-    monkeypatch.setattr("agentgraph_connector_rss._parse_feed", AsyncMock(return_value=_Parsed()))
-    backend = MagicMock()
-    backend.query_by_filter = AsyncMock(return_value=[{"id": "existing-entry"}])
-    set_backend(backend)
-
-    with patch(
-        "agentgraph_connector_rss._hydrate_entry_document",
-        new=AsyncMock(),
-    ) as hydrate:
-        batch = await _fetch_feed(
-            "https://example.com/feed.xml",
-            hydrate_documents=True,
-            skip_existing_urls=True,
-        )
-
-    hydrate.assert_not_awaited()
-    backend.query_by_filter.assert_awaited_once_with(
-        "Document",
-        {"platform": "rss", "link": "https://example.com/first"},
-        1,
-        "updated_at",
-        None,
-        None,
-    )
-    assert [entity.entity_type for entity in batch.entities] == ["Folder"]
-    assert batch.edges == []
-
-
-@pytest.mark.asyncio
-async def test_fetch_feed_skip_existing_urls_falls_back_to_canonical_web_url(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    class _Parsed:
-        bozo = False
-        feed = {"title": "Example Feed"}
-        entries = [
-            {
-                "id": "new-entry-id",
-                "title": "First Post",
-                "link": "https://example.com/first",
-            }
-        ]
-
-    monkeypatch.setattr("agentgraph_connector_rss._parse_feed", AsyncMock(return_value=_Parsed()))
-    backend = MagicMock()
-    backend.query_by_filter = AsyncMock(side_effect=[[], [{"id": "existing-entry"}]])
-    set_backend(backend)
-
-    with patch(
-        "agentgraph_connector_rss._hydrate_entry_document",
-        new=AsyncMock(),
-    ) as hydrate:
-        batch = await _fetch_feed(
-            "https://example.com/feed.xml",
-            hydrate_documents=True,
-            skip_existing_urls=True,
-        )
-
-    hydrate.assert_not_awaited()
-    assert backend.query_by_filter.await_count == 2
-    assert [entity.entity_type for entity in batch.entities] == ["Folder"]
-
-
-@pytest.mark.asyncio
-async def test_fetch_feed_skip_existing_urls_hydrates_new_article_url(
+async def test_fetch_feed_does_not_query_existing_article_urls(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class _Parsed:
@@ -1516,16 +1438,15 @@ async def test_fetch_feed_skip_existing_urls_hydrates_new_article_url(
         batch = await _fetch_feed(
             "https://example.com/feed.xml",
             hydrate_documents=True,
-            skip_existing_urls=True,
         )
 
     hydrate.assert_awaited_once()
-    assert backend.query_by_filter.await_count == 2
+    backend.query_by_filter.assert_not_awaited()
     assert [entity.entity_type for entity in batch.entities] == ["Folder", "Document"]
 
 
 @pytest.mark.asyncio
-async def test_rss_poll_skips_existing_article_urls() -> None:
+async def test_rss_poll_uses_entry_identity_for_existing_articles() -> None:
     connector = RssConnector()
     batch = EntityBatch()
 
@@ -1535,7 +1456,6 @@ async def test_rss_poll_skips_existing_article_urls() -> None:
     assert result is batch
     ingest.assert_awaited_once_with(
         account_id=None,
-        skip_existing_urls=True,
         defer_article_hydration_for_legacy_feeds=True,
     )
     assert "last_polled_at" in cursor
@@ -1560,7 +1480,6 @@ async def test_rss_poll_defers_article_hydration_for_a_legacy_feed_folder() -> N
     fetch_feed.assert_awaited_once_with(
         feed_url,
         hydrate_documents=False,
-        skip_existing_urls=True,
         persist_feed_payload_only=True,
     )
 
@@ -1585,7 +1504,6 @@ async def test_rss_poll_hydrates_articles_after_feed_payload_is_stored() -> None
     fetch_feed.assert_awaited_once_with(
         feed_url,
         hydrate_documents=True,
-        skip_existing_urls=True,
         persist_feed_payload_only=False,
     )
 
@@ -1750,7 +1668,7 @@ async def test_rss_ingest_does_not_cache_observation_patterns() -> None:
         ),
         patch("agentgraph_connector_rss._fetch_feed", new=AsyncMock(return_value=batch)),
     ):
-        await connector.ingest(skip_existing_urls=True)
+        await connector.ingest()
 
     assert not hasattr(connector, "_observation_patterns")
 
