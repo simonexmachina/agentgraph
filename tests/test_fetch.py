@@ -96,7 +96,16 @@ async def test_fetch_entity_persists_connector_batch() -> None:
     ]
     backend.reset_synced_at.assert_awaited_once_with("test", "article-1")
     upsert_batch.assert_awaited_once_with(batch)
-    assert result == {"entities": 1, "metadata_patches": 0, "persons": 1, "edges": 1}
+    assert result == {
+        "entity": {
+            "entity_type": "Document",
+            "metadata": {"web_url": "https://example.com/article-1"},
+        },
+        "entities": 1,
+        "metadata_patches": 0,
+        "persons": 1,
+        "edges": 1,
+    }
 
 
 @pytest.mark.asyncio
@@ -125,4 +134,10 @@ async def test_fetch_entity_persists_metadata_patch_batch() -> None:
         result = await fetch_entity("test", "article-1")
 
     upsert_batch.assert_awaited_once_with(batch)
-    assert result == {"entities": 0, "metadata_patches": 1, "persons": 0, "edges": 0}
+    assert result == {
+        "entity": {"entity_type": "Document", "metadata": {}},
+        "entities": 0,
+        "metadata_patches": 1,
+        "persons": 0,
+        "edges": 0,
+    }

@@ -12,7 +12,7 @@ source_path = "docs-src/mcp/download-entity.md"
 ## Signature
 
 ```text
-download_entity_tool(entity_id, output_path=None) -> JSON string
+download_entity_tool(entity_id, output_path=None) -> structured MCP result
 ```
 
 ## Returns

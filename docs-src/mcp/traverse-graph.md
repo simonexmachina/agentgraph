@@ -12,7 +12,7 @@ source_path = "docs-src/mcp/traverse-graph.md"
 ## Signature
 
 ```text
-traverse_graph_tool(entity_id, max_depth=2, resolve=false) -> JSON string
+traverse_graph_tool(entity_id, max_depth=2, resolve=false) -> structured MCP result
 ```
 
 ## Notes

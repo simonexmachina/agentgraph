@@ -12,7 +12,7 @@ async def fetch_entity(platform: str, resource_id: str) -> dict[str, Any]:
 
     Resolves the entity type from the backend (falling back to Document), resets
     synced_at so the connector treats the entity as stale, and runs a targeted
-    fetch.  Returns counts of ingested entities/persons/edges.
+    fetch. Returns the canonical entity when it exists, plus ingestion counts.
     """
     from agentgraph.connectors.registry import get_connector
     from agentgraph.graph.upsert import upsert_batch
@@ -34,7 +34,9 @@ async def fetch_entity(platform: str, resource_id: str) -> dict[str, Any]:
 
     batch = await connector.fetch(resource_type=resource_type, resource_id=resource_id, meta=meta)
     await upsert_batch(batch)
+    fetched_entity = await backend.get_entity_by_platform(platform, resource_id)
     return {
+        "entity": fetched_entity,
         "entities": len(batch.entities),
         "metadata_patches": len(batch.metadata_patches),
         "persons": len(batch.persons),

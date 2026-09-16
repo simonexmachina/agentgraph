@@ -9,6 +9,18 @@ output = "mcp/index.html"
 source_path = "docs-src/mcp/index.md"
 +++
 
+## Responses
+
+Every tool returns typed structured content. On success, read
+`{"status": "ok", "data": ...}`. Expected failures set the MCP `isError` flag
+and return `{"status": "error", "code": ..., "message": ..., "recovery": ...}`.
+Use the error code to choose a recovery step; `recovery` is present only when one is
+available.
+
+Search results include `returned` and `has_more`. Entity payloads include `is_stub`
+and `source_url` when the connector provides a canonical web URL. A stub has neither
+a title nor content; fetch it before relying on source details.
+
 ## Discovery
 
 - [`list_connectors_tool`](/mcp/list-connectors.html) - inspect installed connectors, auth state, and valid platform values.

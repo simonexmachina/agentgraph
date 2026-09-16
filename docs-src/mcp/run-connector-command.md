@@ -12,7 +12,7 @@ source_path = "docs-src/mcp/run-connector-command.md"
 ## Signature
 
 ```text
-run_connector_command_tool(source, args) -> JSON string
+run_connector_command_tool(source, args) -> structured MCP result
 ```
 
 ## Arguments
@@ -28,8 +28,6 @@ fetch, `["observe", "<url-or-prefix>"]` to add a browser observation rule, and
 `["observe", "<url-or-prefix>", "--remove"]` to remove one. Discover other command
 sets with `args=["--help"]`.
 
-## Returns
-
-- connector-defined result JSON
-- connector-owned help when `args` is `["--help"]` or `["help"]`
-- an error message if the source or connector command is invalid
+The connector-defined payload is in `data.result`; `data.help` is returned for
+`args=["--help"]` or `["help"]`. Use connector help to discover source-specific
+commands.

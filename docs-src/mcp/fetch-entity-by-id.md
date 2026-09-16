@@ -12,7 +12,7 @@ source_path = "docs-src/mcp/fetch-entity-by-id.md"
 ## Signature
 
 ```text
-fetch_entity_by_id_tool(entity_id) -> JSON string
+fetch_entity_by_id_tool(entity_id) -> structured MCP result
 ```
 
 The tool looks up the owning platform and source resource ID, calls that connector, and persists the returned entities, people, and edges. Use it to hydrate a stub reached through search or traversal, or to refresh an existing entity before continuing an investigation.

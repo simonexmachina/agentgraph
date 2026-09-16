@@ -12,7 +12,7 @@ source_path = "docs-src/mcp/fetch-entity.md"
 ## Signature
 
 ```text
-fetch_entity_tool(platform, resource_id) -> JSON string
+fetch_entity_tool(platform, resource_id) -> structured MCP result
 ```
 
 ## Use it when
@@ -23,5 +23,8 @@ fetch_entity_tool(platform, resource_id) -> JSON string
 - a known resource is stale and should be re-ingested before reasoning over it.
 
 The owning connector fetches the resource and persists its complete returned batch of entities, metadata patches, people, and edges. A metadata patch records a successful non-material refresh without emitting an entity upsert event. Direct fetch does not set `observed_at`; it records retrieval by the agent, not human browser attention.
+
+`data.entity` is the canonical graph reference after ingestion when one was stored.
+The remaining `data` fields are the upsert counts.
 
 For an existing internal graph UUID, use [`fetch_entity_by_id_tool`](/mcp/fetch-entity-by-id.html).

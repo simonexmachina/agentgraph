@@ -128,7 +128,10 @@ def test_build_writes_docs_site(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     assert 'href="tester-extension-install.html"' not in nav_html
     assert 'href="privacy.html"' not in nav_html
     assert 'href="extension-distribution.html"' not in nav_html
-    assert 'https://github.com/simonexmachina/agentgraph/blob/main/examples/custom_connector.py' in extending_html
+    assert (
+        "https://github.com/simonexmachina/agentgraph/blob/main/examples/custom_connector.py"
+        in extending_html
+    )
     assert "Interface reference" not in extending_html
     assert "<table>" not in extending_html
     assert "Why extend AgentGraph" in extending_html
@@ -149,8 +152,7 @@ def test_build_writes_docs_site(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     assert "agentgraph-server" in demo_html
     assert "demo<span" in demo_html
     assert (
-        "Open a new coding-agent session" in demo_html
-        or "Open a coding-agent session" in demo_html
+        "Open a new coding-agent session" in demo_html or "Open a coding-agent session" in demo_html
     )
     assert "AgentGraph CLI" in demo_html
     assert "Open the viewer" in demo_html
@@ -307,9 +309,14 @@ async def test_command_and_mcp_reference_pages_match_runtime_interfaces() -> Non
     assert "Web is a required dependency of `agentgraph-server`" in source_for(
         "commands/list-connectors.html"
     )
-    assert "get_entity_tool(entity_id, resolve=false) -> JSON string" in source_for(
+    assert "agentgraph serve" in source_for("install.html")
+    assert "agentgraph server" not in source_for("install.html")
+    demo_source = source_for("demo.html")
+    assert 'mkdir -p "$HOME/agentgraph-tmp"' in demo_source
+    assert "AGENTGRAPH_CONFIG_DIR=%s" in demo_source
+    assert "get_entity_tool(entity_id, resolve=false) -> structured MCP result" in source_for(
         "mcp/get-entity.html"
     )
-    assert "list_connectors_tool(verify=false) -> JSON string" in source_for(
+    assert "list_connectors_tool(verify=false) -> structured MCP result" in source_for(
         "mcp/list-connectors.html"
     )

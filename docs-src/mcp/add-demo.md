@@ -12,7 +12,7 @@ source_path = "docs-src/mcp/add-demo.md"
 ## Signature
 
 ```text
-add_demo_tool() -> JSON string
+add_demo_tool() -> structured MCP result
 ```
 
 The tool adds the offline Atlas demonstration fixtures to the configured database.

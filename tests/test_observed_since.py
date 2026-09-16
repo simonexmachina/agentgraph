@@ -93,7 +93,16 @@ async def test_mcp_forwards_observed_since(query: str | None) -> None:
     ):
         result = await server.search_entities_tool(query, observed_since="2d", since="12h")
 
-    assert result == "[]"
+    assert result.isError is False
+    assert result.structuredContent == {
+        "status": "ok",
+        "data": {
+            "entities": [],
+            "limit": 10 if query else 50,
+            "returned": 0,
+            "has_more": False,
+        },
+    }
     assert search.call_args.kwargs["observed_since"] == "2d"
     assert search.call_args.kwargs["since"] == "12h"
 

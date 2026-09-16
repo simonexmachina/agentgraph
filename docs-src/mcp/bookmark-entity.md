@@ -12,7 +12,7 @@ source_path = "docs-src/mcp/bookmark-entity.md"
 ## Signature
 
 ```text
-bookmark_entity_tool(entity_id, bookmarked = true) -> JSON string
+bookmark_entity_tool(entity_id, bookmarked = true) -> structured MCP result
 ```
 
 ## Arguments

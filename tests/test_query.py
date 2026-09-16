@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
+from mcp.types import CallToolResult
 
 from agentgraph.connectors.base import ConnectorCommandEffects, EntityReference, SourceReference
 from agentgraph.core.context import set_backend
@@ -19,6 +19,28 @@ from agentgraph.core.context import set_backend
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _mcp_content(result: CallToolResult) -> dict[str, Any]:
+    assert isinstance(result, CallToolResult)
+    assert isinstance(result.structuredContent, dict)
+    return result.structuredContent
+
+
+def _mcp_data(result: CallToolResult) -> dict[str, Any]:
+    content = _mcp_content(result)
+    assert result.isError is False
+    assert content["status"] == "ok"
+    data = content["data"]
+    assert isinstance(data, dict)
+    return cast(dict[str, Any], data)
+
+
+def _mcp_error(result: CallToolResult) -> dict[str, Any]:
+    content = _mcp_content(result)
+    assert result.isError is True
+    assert content["status"] == "error"
+    return content
 
 
 def _entity(
@@ -895,15 +917,21 @@ async def test_mcp_fetch_web_size_limit_suggests_compact_command() -> None:
         patch(
             "agentgraph.graph.fetch.fetch_entity",
             new=AsyncMock(
-                side_effect=ValueError("Response too large for web document: limit is 2000000 bytes")
+                side_effect=ValueError(
+                    "Response too large for web document: limit is 2000000 bytes"
+                )
             ),
         ),
         patch("agentgraph.connectors.registry.get_connector", return_value=WebConnector()),
     ):
         result = await fetch_entity_tool("web", "https://example.com/page")
 
-    assert "Response too large for web document" in json.loads(result)["error"]
-    assert 'run_connector_command_tool("web", ["fetch", "https://example.com/page", "--compact"])' in json.loads(result)["error"]
+    error = _mcp_error(result)
+    assert "Response too large for web document" in error["message"]
+    assert (
+        'run_connector_command_tool("web", ["fetch", "https://example.com/page", "--compact"])'
+        in error["message"]
+    )
 
 
 @pytest.mark.asyncio
@@ -913,8 +941,8 @@ async def test_mcp_search_entities_tool_returns_json() -> None:
     with patch("agentgraph.graph.query.search_entities", new=AsyncMock(return_value=[])):
         result = await search_entities_tool("test")
 
-    parsed = json.loads(result)
-    assert isinstance(parsed, list)
+    parsed = _mcp_data(result)
+    assert parsed == {"entities": [], "limit": 10, "returned": 0, "has_more": False}
 
 
 @pytest.mark.asyncio
@@ -934,8 +962,8 @@ async def test_mcp_search_entities_tool_skips_connector_enrichment_by_default() 
     ):
         result = await search_entities_tool("test")
 
-    parsed = json.loads(result)
-    assert "enriched" not in parsed[0]["metadata"]
+    parsed = _mcp_data(result)
+    assert "enriched" not in parsed["entities"][0]["metadata"]
 
 
 @pytest.mark.asyncio
@@ -955,8 +983,8 @@ async def test_mcp_search_entities_tool_enriches_results_via_connector_when_refr
     ):
         result = await search_entities_tool("test", refresh=True)
 
-    parsed = json.loads(result)
-    assert parsed[0]["metadata"]["enriched"] is True
+    parsed = _mcp_data(result)
+    assert parsed["entities"][0]["metadata"]["enriched"] is True
 
 
 @pytest.mark.asyncio
@@ -967,8 +995,7 @@ async def test_mcp_get_entity_tool_not_found() -> None:
     with patch("agentgraph.graph.operations.get_entity_details", new=AsyncMock(return_value=None)):
         result = await get_entity_tool(eid)
 
-    parsed = json.loads(result)
-    assert "error" in parsed
+    assert _mcp_error(result)["code"] == "entity_not_found"
 
 
 @pytest.mark.asyncio
@@ -984,8 +1011,8 @@ async def test_mcp_get_entity_tool_found() -> None:
     ):
         result = await get_entity_tool(eid)
 
-    parsed = json.loads(result)
-    assert parsed["title"] == "My Doc"
+    parsed = _mcp_data(result)
+    assert parsed["entity"]["title"] == "My Doc"
 
 
 @pytest.mark.asyncio
@@ -1002,8 +1029,8 @@ async def test_mcp_get_entity_tool_resolves_stub_when_requested() -> None:
     ) as get_entity_details:
         result = await get_entity_tool(eid, resolve=True)
 
-    parsed = json.loads(result)
-    assert parsed["content"] == "Full source content"
+    parsed = _mcp_data(result)
+    assert parsed["entity"]["content"] == "Full source content"
     get_entity_details.assert_awaited_once_with(eid, resolve=True)
 
 
@@ -1018,7 +1045,7 @@ async def test_mcp_get_entity_tool_does_not_resolve_stub_by_default() -> None:
     ) as get_entity_details:
         result = await get_entity_tool(str(stub["id"]))
 
-    assert json.loads(result)["content"] == ""
+    assert _mcp_data(result)["entity"]["content"] == ""
     get_entity_details.assert_awaited_once_with(str(stub["id"]), resolve=False)
 
 
@@ -1033,8 +1060,8 @@ async def test_mcp_get_entity_tool_url_found() -> None:
     ):
         result = await get_entity_tool("https://example.com/page")
 
-    parsed = json.loads(result)
-    assert parsed["title"] == "Web Page"
+    parsed = _mcp_data(result)
+    assert parsed["entity"]["title"] == "Web Page"
 
 
 @pytest.mark.asyncio
@@ -1044,8 +1071,7 @@ async def test_mcp_get_entity_tool_url_not_found() -> None:
     with patch("agentgraph.graph.operations.get_entity_details", new=AsyncMock(return_value=None)):
         result = await get_entity_tool("https://example.com/missing")
 
-    parsed = json.loads(result)
-    assert "error" in parsed
+    assert _mcp_error(result)["code"] == "entity_not_found"
 
 
 @pytest.mark.asyncio
@@ -1060,7 +1086,9 @@ async def test_mcp_get_edges_resolves_platform_reference() -> None:
     ) as get_entity_edges:
         result = await get_edges_tool("slack/T123/C123")
 
-    assert json.loads(result) == [edge]
+    parsed = _mcp_data(result)
+    assert parsed["edges"] == [edge]
+    assert parsed["entity"]["id"] == entity["id"]
     get_entity_edges.assert_awaited_once_with(
         "slack/T123/C123",
         edge_type=None,
@@ -1114,7 +1142,7 @@ async def test_mcp_traverse_resolves_stub_nodes_and_repeats_traversal() -> None:
     ) as traverse:
         result = await traverse_graph_tool("gdocs/doc-id", resolve=True)
 
-    parsed = json.loads(result)
+    parsed = _mcp_data(result)
     assert parsed["nodes"][1]["title"] == "Hydrated"
     assert parsed["nodes"][1]["content_truncated"] is False
     traverse.assert_awaited_once_with("gdocs/doc-id", max_depth=2, resolve=True)
@@ -1129,26 +1157,25 @@ async def test_mcp_tool_metadata_guides_agent_workflow() -> None:
     instructions = mcp.instructions
     assert instructions is not None
     assert "search broadly" in instructions
-    assert tools["search_entities_tool"].inputSchema["properties"]["min_score"][
-        "default"
-    ] == 0.03
+    assert tools["search_entities_tool"].inputSchema["properties"]["min_score"]["default"] == 0.03
     assert tools["get_entity_tool"].inputSchema["properties"]["resolve"]["default"] is False
-    assert tools["traverse_graph_tool"].inputSchema["properties"]["resolve"][
-        "default"
-    ] is False
+    assert tools["traverse_graph_tool"].inputSchema["properties"]["resolve"]["default"] is False
     assert tools["search_entities_tool"].annotations is not None
     assert tools["search_entities_tool"].annotations.readOnlyHint is True
     assert tools["delete_entity_tool"].annotations is not None
     assert tools["delete_entity_tool"].annotations.destructiveHint is True
+    search_output = tools["search_entities_tool"].outputSchema
+    assert search_output is not None
+    assert search_output["title"] == "ToolData[SearchData]"
+    assert len(search_output["anyOf"]) == 2
     assert "install_skill_tool" not in tools
     assert "query_by_filter_tool" not in tools
     search_description = tools["search_entities_tool"].description
     assert search_description is not None
     assert "default 0.03" in search_description
     # The filtering guidance folded in from the removed query_by_filter_tool.
-    assert 'platform="gmail"' in search_description
+    assert "Gmail attachments" in search_description
     assert "has_attachments" in search_description
-    assert "metadata.attachments" in search_description
     assert "Entity types available in this MCP process:" in search_description
     for entity_type in ("Channel", "Document", "Email", "Folder", "Message", "Person"):
         assert f"- {entity_type}:" in search_description
@@ -1178,18 +1205,34 @@ def test_mcp_entity_type_catalog_includes_connector_descriptions() -> None:
 async def test_mcp_search_entities_tool_filters_without_a_query() -> None:
     from agentgraph.mcp.server import search_entities_tool
 
-    with patch(
-        "agentgraph.graph.query.search_entities", new=AsyncMock(return_value=[])
-    ) as search:
+    with patch("agentgraph.graph.query.search_entities", new=AsyncMock(return_value=[])) as search:
         result = await search_entities_tool(filters={"channel_id": "C123"})
 
-    assert isinstance(json.loads(result), list)
+    assert _mcp_data(result)["entities"] == []
     # No query string, so the unranked default limit applies and filter values are
     # coerced to the strings every predicate compares against.
     assert search.await_args is not None
     assert search.await_args.args[0] is None
     assert search.await_args.kwargs["filters"] == {"channel_id": "C123"}
-    assert search.await_args.kwargs["limit"] == 50
+    assert search.await_args.kwargs["limit"] == 51
+
+
+@pytest.mark.asyncio
+async def test_mcp_search_entities_tool_reports_remaining_results() -> None:
+    from agentgraph.mcp.server import search_entities_tool
+
+    with patch(
+        "agentgraph.graph.query.search_entities",
+        new=AsyncMock(return_value=[_entity(title="First"), _entity(title="Second")]),
+    ) as search:
+        result = await search_entities_tool("test", limit=1)
+
+    data = _mcp_data(result)
+    assert [entity["title"] for entity in data["entities"]] == ["First"]
+    assert data["returned"] == 1
+    assert data["has_more"] is True
+    assert search.await_args is not None
+    assert search.await_args.kwargs["limit"] == 2
 
 
 @pytest.mark.asyncio
@@ -1197,9 +1240,7 @@ async def test_mcp_search_entities_tool_coerces_non_string_filter_values() -> No
     """MCP clients send numbers and bools; the predicates compare against text."""
     from agentgraph.mcp.server import search_entities_tool
 
-    with patch(
-        "agentgraph.graph.query.search_entities", new=AsyncMock(return_value=[])
-    ) as search:
+    with patch("agentgraph.graph.query.search_entities", new=AsyncMock(return_value=[])) as search:
         await search_entities_tool(filters={"issue_number": 42, "resolved": True})
 
     assert search.await_args is not None
@@ -1222,11 +1263,11 @@ async def test_mcp_search_entities_tool_truncates_long_content() -> None:
     ):
         result = await search_entities_tool(entity_types=["Message"])
 
-    parsed = json.loads(result)
+    parsed = _mcp_data(result)
     # Bounded by the query layer's summarize_entities, which the transport applies for
     # every caller, rather than by a second truncation inside the MCP tool.
-    assert len(parsed[0]["content"]) == 500
-    assert parsed[0]["content_truncated"] is True
+    assert len(parsed["entities"][0]["content"]) == 500
+    assert parsed["entities"][0]["content_truncated"] is True
 
 
 @pytest.mark.asyncio
@@ -1239,7 +1280,7 @@ async def test_mcp_download_entity_tool() -> None:
     ):
         result = await download_entity_tool("abc123", "/tmp")
 
-    assert json.loads(result) == fake_result
+    assert _mcp_data(result) == fake_result
 
 
 @pytest.mark.asyncio
@@ -1253,8 +1294,8 @@ async def test_mcp_bookmark_entity_tool() -> None:
     ):
         result = await bookmark_entity_tool("abc123")
 
-    parsed = json.loads(result)
-    assert parsed["bookmarked"] is True
+    parsed = _mcp_data(result)
+    assert parsed["entity"]["bookmarked"] is True
 
 
 @pytest.mark.asyncio
@@ -1268,8 +1309,8 @@ async def test_mcp_bookmark_entity_tool_can_remove_bookmark() -> None:
     ) as set_bookmark:
         result = await bookmark_entity_tool("abc123", bookmarked=False)
 
-    parsed = json.loads(result)
-    assert parsed["bookmarked"] is False
+    parsed = _mcp_data(result)
+    assert parsed["entity"]["bookmarked"] is False
     set_bookmark.assert_awaited_once_with("abc123", False)
 
 
@@ -1281,7 +1322,7 @@ async def test_mcp_delete_entity_tool() -> None:
     with patch("agentgraph.graph.delete.delete_entity", new=AsyncMock(return_value=fake_result)):
         result = await delete_entity_tool("abc123")
 
-    parsed = json.loads(result)
+    parsed = _mcp_data(result)
     assert parsed["deleted"] is True
 
 
@@ -1311,7 +1352,7 @@ async def test_mcp_list_auth_providers_tool_returns_json() -> None:
     ):
         result = await list_auth_providers_tool()
 
-    assert json.loads(result) == fake_items
+    assert _mcp_data(result) == {"items": fake_items}
 
 
 @pytest.mark.asyncio
@@ -1327,12 +1368,15 @@ async def test_mcp_auth_status_exposes_slack_auth_method(
     credentials_file = tmp_path / "credentials.json"
     monkeypatch.setattr("agentgraph.auth.credentials.CONFIG_DIR", tmp_path)
     monkeypatch.setattr("agentgraph.auth.credentials.CREDENTIALS_FILE", credentials_file)
-    save_platform("slack", {
-        "xoxc_token": "xoxc-T1-old",
-        "d_cookie": "cookie",
-        "team_id": "T1",
-        "user_id": "U1",
-    })
+    save_platform(
+        "slack",
+        {
+            "xoxc_token": "xoxc-T1-old",
+            "d_cookie": "cookie",
+            "team_id": "T1",
+            "user_id": "U1",
+        },
+    )
     with (
         patch("agentgraph.connectors.registry.bootstrap"),
         patch(
@@ -1342,8 +1386,8 @@ async def test_mcp_auth_status_exposes_slack_auth_method(
     ):
         result = await list_auth_providers_tool()
 
-    parsed = json.loads(result)
-    assert parsed[0]["accounts"][0]["auth_method"] == "browser"
+    parsed = _mcp_data(result)
+    assert parsed["items"][0]["accounts"][0]["auth_method"] == "browser"
 
 
 @pytest.mark.asyncio
@@ -1361,7 +1405,7 @@ async def test_mcp_remove_auth_provider_tool_removes_credentials(
 
     result = await remove_auth_provider_tool("slack")
 
-    parsed = json.loads(result)
+    parsed = _mcp_data(result)
     assert parsed == {"provider": "slack", "removed": True}
     assert load_platform("slack") is None
 
@@ -1397,7 +1441,7 @@ async def test_mcp_authenticate_provider_dispatches_generic_connector_args() -> 
             "example", ["--method", "custom"], "example:1", True
         )
 
-    assert json.loads(result) == {"provider": "example", "authenticated": True}
+    assert _mcp_data(result) == {"provider": "example", "authenticated": True}
     assert captured == {
         "args": ["--method", "custom"],
         "account_id": "example:1",
@@ -1441,7 +1485,7 @@ async def test_mcp_list_connectors_tool_returns_json() -> None:
     ):
         result = await list_connectors_tool()
 
-    assert json.loads(result) == fake_items
+    assert _mcp_data(result) == {"items": fake_items}
 
 
 @pytest.mark.asyncio
@@ -1473,11 +1517,9 @@ async def test_mcp_connector_command_queues_requested_poll() -> None:
             new=AsyncMock(return_value=poll_result),
         ) as schedule_poll,
     ):
-        result = await run_connector_command_tool(
-            "rss", ["add", "https://example.com/feed.xml"]
-        )
+        result = await run_connector_command_tool("rss", ["add", "https://example.com/feed.xml"])
 
-    assert json.loads(result)["poll"] == poll_result
+    assert _mcp_data(result)["result"]["poll"] == poll_result
     schedule_poll.assert_awaited_once()
 
 
@@ -1514,7 +1556,7 @@ async def test_mcp_connector_command_executes_requested_entity_deletion() -> Non
     ):
         result = await run_connector_command_tool("rss", ["remove", "https://example.com/feed.xml"])
 
-    assert json.loads(result)["deleted_entities"] == deleted
+    assert _mcp_data(result)["result"]["deleted_entities"] == deleted
     execute_deletions.assert_awaited_once()
 
 
@@ -1537,9 +1579,7 @@ async def test_mcp_connector_command_executes_requested_fetch() -> None:
         ) -> ConnectorCommandEffects:
             _ = (args, result)
             return ConnectorCommandEffects(
-                fetch_references=(
-                    SourceReference("web", "document", "https://example.com/page"),
-                )
+                fetch_references=(SourceReference("web", "document", "https://example.com/page"),)
             )
 
     fetched = [
@@ -1564,7 +1604,7 @@ async def test_mcp_connector_command_executes_requested_fetch() -> None:
             "web", ["fetch", "https://example.com/page", "--compact"]
         )
 
-    assert json.loads(result)["fetched"] == fetched
+    assert _mcp_data(result)["result"]["fetched"] == fetched
     execute_fetches.assert_awaited_once()
 
 
@@ -1588,9 +1628,12 @@ async def test_mcp_connector_web_fetch_size_limit_suggests_compact_command() -> 
     ):
         result = await run_connector_command_tool("web", ["fetch", "https://example.com/page"])
 
-    error = json.loads(result)["error"]
+    error = _mcp_error(result)["message"]
     assert "Response too large for web document" in error
-    assert 'run_connector_command_tool("web", ["fetch", "https://example.com/page", "--compact"])' in error
+    assert (
+        'run_connector_command_tool("web", ["fetch", "https://example.com/page", "--compact"])'
+        in error
+    )
 
 
 @pytest.mark.asyncio
@@ -1607,9 +1650,9 @@ async def test_mcp_connector_command_reports_connector_load_error() -> None:
     ):
         result = await run_connector_command_tool("web", ["--help"])
 
-    assert json.loads(result) == {
-        "error": "Failed to load connector 'web': No module named 'curl_cffi'"
-    }
+    error = _mcp_error(result)
+    assert error["code"] == "connector_load_failed"
+    assert error["message"] == "Failed to load connector 'web': No module named 'curl_cffi'"
 
 
 @pytest.mark.asyncio
@@ -1644,9 +1687,11 @@ async def test_mcp_connector_command_queues_requested_ingest_for_account() -> No
         patch("agentgraph.connectors.registry.get_connector", return_value=Connector()),
         patch("agentgraph.mcp.server.asyncio.create_task", side_effect=fake_create_task),
     ):
-        result = await run_connector_command_tool("gmail", ["ingest", "--account", "user@example.com"])
+        result = await run_connector_command_tool(
+            "gmail", ["ingest", "--account", "user@example.com"]
+        )
 
-    assert json.loads(result)["ingest"] == {
+    assert _mcp_data(result)["result"]["ingest"] == {
         "source": "gmail",
         "status": "started",
         "account_id": "user@example.com",
@@ -1680,11 +1725,9 @@ async def test_mcp_connector_command_does_not_poll_after_validation_error() -> N
         patch("agentgraph.connectors.registry.get_connector", return_value=Connector()),
         patch("agentgraph.server.sync.schedule_poll_connector") as schedule_poll,
     ):
-        result = await run_connector_command_tool(
-            "rss", ["add", "https://example.com/not-a-feed"]
-        )
+        result = await run_connector_command_tool("rss", ["add", "https://example.com/not-a-feed"])
 
-    assert json.loads(result) == {"error": "Not a valid RSS/Atom feed"}
+    assert _mcp_error(result)["message"] == "Not a valid RSS/Atom feed"
     schedule_poll.assert_not_called()
 
 
@@ -1713,7 +1756,7 @@ async def test_mcp_poll_connectors_tool_starts_poll_tasks() -> None:
     ):
         result = await poll_connectors_tool()
 
-    assert json.loads(result) == {"polled": ["rss"], "already_running": [], "skipped": []}
+    assert _mcp_data(result) == {"polled": ["rss"], "already_running": [], "skipped": []}
     schedule_poll.assert_called_once()
 
 
@@ -1738,7 +1781,7 @@ async def test_mcp_poll_connectors_tool_uses_source_connector_lookup() -> None:
     ):
         result = await poll_connectors_tool("rss")
 
-    assert json.loads(result) == {"polled": ["rss"], "already_running": [], "skipped": []}
+    assert _mcp_data(result) == {"polled": ["rss"], "already_running": [], "skipped": []}
     get_connector.assert_called_once_with("rss")
     get_all_connectors.assert_not_called()
     schedule_poll.assert_called_once()
@@ -1754,7 +1797,9 @@ async def test_mcp_poll_connectors_tool_reports_already_running() -> None:
 
     with (
         patch("agentgraph.connectors.registry.bootstrap"),
-        patch("agentgraph.connectors.registry.get_all_connectors", return_value=[PollingConnector()]),
+        patch(
+            "agentgraph.connectors.registry.get_all_connectors", return_value=[PollingConnector()]
+        ),
         patch(
             "agentgraph.server.sync.schedule_poll_connector",
             new=AsyncMock(
@@ -1764,7 +1809,7 @@ async def test_mcp_poll_connectors_tool_reports_already_running() -> None:
     ):
         result = await poll_connectors_tool()
 
-    assert json.loads(result) == {"polled": [], "already_running": ["rss"], "skipped": []}
+    assert _mcp_data(result) == {"polled": [], "already_running": ["rss"], "skipped": []}
 
 
 @pytest.mark.asyncio
@@ -1777,7 +1822,9 @@ async def test_mcp_poll_connectors_tool_reports_skipped_auth() -> None:
 
     with (
         patch("agentgraph.connectors.registry.bootstrap"),
-        patch("agentgraph.connectors.registry.get_all_connectors", return_value=[PollingConnector()]),
+        patch(
+            "agentgraph.connectors.registry.get_all_connectors", return_value=[PollingConnector()]
+        ),
         patch(
             "agentgraph.server.sync.schedule_poll_connector",
             new=AsyncMock(
@@ -1791,7 +1838,7 @@ async def test_mcp_poll_connectors_tool_reports_skipped_auth() -> None:
     ):
         result = await poll_connectors_tool()
 
-    assert json.loads(result) == {
+    assert _mcp_data(result) == {
         "polled": [],
         "already_running": [],
         "skipped": [{"source": "gmail", "reason": "authentication invalid: token expired"}],
@@ -1808,5 +1855,4 @@ async def test_mcp_poll_connectors_tool_reports_unknown_source() -> None:
     ):
         result = await poll_connectors_tool("missing")
 
-    parsed = json.loads(result)
-    assert "error" in parsed
+    assert _mcp_error(result)["code"] == "connector_not_found"

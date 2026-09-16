@@ -8,9 +8,8 @@ was pointing at goes away.
 from __future__ import annotations
 
 # pyright: reportPrivateUsage=false, reportUnusedFunction=false
-import json
 from collections.abc import Iterator
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -181,7 +180,14 @@ async def test_tools_use_the_resolved_transport() -> None:
     """A tool must go through the transport, not import the graph layer directly."""
     from agentgraph.mcp.server import get_entity_tool
 
-    entity = {"id": "e1", "entity_type": "Document", "platform": "web"}
+    entity = {
+        "id": "e1",
+        "entity_type": "Document",
+        "platform": "web",
+        "platform_entity_id": "https://example.com/page",
+        "created_at": None,
+        "updated_at": None,
+    }
     client = HttpQueryClient(
         "http://t",
         transport=httpx.MockTransport(lambda _r: httpx.Response(200, json=entity)),
@@ -190,4 +196,11 @@ async def test_tools_use_the_resolved_transport() -> None:
     with patch.object(mcp_server, "resolve_query_client", lambda: client):
         result = await get_entity_tool("e1")
 
-    assert json.loads(result) == entity
+    assert result.isError is False
+    structured = result.structuredContent
+    assert isinstance(structured, dict)
+    data = cast(dict[str, Any], structured["data"])
+    returned = cast(dict[str, Any], data["entity"])
+    assert returned["id"] == entity["id"]
+    assert returned["platform_entity_id"] == entity["platform_entity_id"]
+    assert returned["is_stub"] is True
