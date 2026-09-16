@@ -493,9 +493,6 @@ class BaseConnector(ABC):
         """Return browser observation patterns, including connector-derived ones."""
         return self.url_patterns
 
-    # Connectors can opt out when their graph-derived patterns must be complete.
-    observation_url_patterns_timeout_seconds: float | None = 4.0
-
     @abstractmethod
     async def fetch(
         self,

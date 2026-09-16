@@ -86,7 +86,6 @@ class RssConnector(BaseConnector):
     onboard_prompt = "Set up RSS feeds?"
     onboard_last = True
     appears_in_auth_status = False
-    observation_url_patterns_timeout_seconds: float | None = None
 
     @classmethod
     def run_auth_flow(

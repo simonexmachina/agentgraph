@@ -25,18 +25,10 @@ async def get_meta(include_dynamic_url_patterns: bool = True) -> dict[str, Any]:
     seen_set: set[str] = set()
     for connector in connectors:
         if include_dynamic_url_patterns:
-            timeout = getattr(
-                connector,
-                "observation_url_patterns_timeout_seconds",
-                _DYNAMIC_PATTERN_TIMEOUT_SECONDS,
-            )
-            if not isinstance(timeout, int | float) and timeout is not None:
-                timeout = _DYNAMIC_PATTERN_TIMEOUT_SECONDS
             try:
-                patterns = (
-                    await connector.observation_url_patterns()
-                    if timeout is None
-                    else await asyncio.wait_for(connector.observation_url_patterns(), timeout=timeout)
+                patterns = await asyncio.wait_for(
+                    connector.observation_url_patterns(),
+                    timeout=_DYNAMIC_PATTERN_TIMEOUT_SECONDS,
                 )
             except TimeoutError:
                 logger.warning(
