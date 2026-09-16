@@ -869,11 +869,14 @@ class SQLiteBackend(StorageBackend):
                     str(existing_row["content"]) if existing_row and existing_row["content"] else ""
                 )
                 fts_title = e.title if e.title is not None else existing_title
-                fts_content = e.content if e.content is not None else existing_content
+                fts_content = (
+                    e.content if e.content_searchable and e.content is not None else ""
+                )
                 rewrite_fts = (
                     existing_row is None
                     or fts_title != existing_title
-                    or fts_content != existing_content
+                    or (e.content_searchable and fts_content != existing_content)
+                    or not e.content_searchable
                 )
                 embedding = embeddings.get(e.platform_entity_id)
                 emb_blob = pack_embedding(embedding) if embedding else None
@@ -892,7 +895,10 @@ class SQLiteBackend(StorageBackend):
                     target_title = e.title if e.title is not None else existing_row["title"]
                     target_content = e.content if e.content is not None else existing_row["content"]
                     target_embedding = (
-                        emb_blob if emb_blob is not None else existing_row["content_embedding"]
+                        emb_blob if e.content_searchable and emb_blob is not None
+                        else existing_row["content_embedding"]
+                        if e.content_searchable
+                        else None
                     )
                     target_source_created = (
                         source_created
@@ -927,7 +933,7 @@ class SQLiteBackend(StorageBackend):
                         entity_type       = CASE WHEN entities.entity_type = 'Document' THEN EXCLUDED.entity_type ELSE entities.entity_type END,
                         title             = COALESCE(EXCLUDED.title, entities.title),
                         content           = COALESCE(EXCLUDED.content, entities.content),
-                        content_embedding = COALESCE(EXCLUDED.content_embedding, entities.content_embedding),
+                        content_embedding = CASE WHEN ? THEN COALESCE(EXCLUDED.content_embedding, entities.content_embedding) ELSE NULL END,
                         metadata          = EXCLUDED.metadata,
                         source_created_at = COALESCE(EXCLUDED.source_created_at, entities.source_created_at),
                         source_updated_at = COALESCE(EXCLUDED.source_updated_at, entities.source_updated_at),
@@ -953,6 +959,7 @@ class SQLiteBackend(StorageBackend):
                         local_updated,
                         e.retention_policy,
                         parent_id,
+                        e.content_searchable,
                         local_updated,
                     ],
                 )

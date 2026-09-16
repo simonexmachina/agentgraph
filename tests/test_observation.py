@@ -165,6 +165,31 @@ async def test_meta_skips_slow_dynamic_connector_and_returns_remaining_patterns(
 
 
 @pytest.mark.asyncio
+async def test_meta_waits_for_a_connector_without_a_pattern_timeout() -> None:
+    from agentgraph.server.meta_api import get_meta
+
+    connector = MagicMock()
+    connector.source = "rss"
+    connector.observation_url_patterns_timeout_seconds = None
+
+    async def delayed_patterns() -> list[str]:
+        await asyncio.sleep(0.02)
+        return ["https://rss.example/*"]
+
+    connector.observation_url_patterns = delayed_patterns
+    settings = MagicMock(observation_threshold_seconds=3)
+
+    with (
+        patch("agentgraph.connectors.registry.get_all_connectors", return_value=[connector]),
+        patch("agentgraph.config.get_settings", return_value=settings),
+        patch("agentgraph.server.meta_api._DYNAMIC_PATTERN_TIMEOUT_SECONDS", 0.01),
+    ):
+        result = await get_meta()
+
+    assert result["url_patterns"] == ["https://rss.example/*"]
+
+
+@pytest.mark.asyncio
 async def test_rss_duration_uses_exact_observation_reference() -> None:
     from agentgraph.server.observation import record_observation
 

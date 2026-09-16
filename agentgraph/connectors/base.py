@@ -122,6 +122,7 @@ class EntityRecord(BaseModel):
     platform_entity_id: str
     title: str | None = None
     content: str | None = None
+    content_searchable: bool = True
     source_created_at: datetime | None = None
     source_updated_at: datetime | None = None
     metadata: dict[str, str | int | float | bool | None] = {}
@@ -491,6 +492,9 @@ class BaseConnector(ABC):
     async def observation_url_patterns(self) -> list[str]:
         """Return browser observation patterns, including connector-derived ones."""
         return self.url_patterns
+
+    # Connectors can opt out when their graph-derived patterns must be complete.
+    observation_url_patterns_timeout_seconds: float | None = 4.0
 
     @abstractmethod
     async def fetch(

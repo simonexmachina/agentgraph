@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 from collections.abc import Mapping, Sequence
@@ -48,7 +49,6 @@ from agentgraph_connector_rss.auth import (
 _STALE_AFTER = 30 * 60
 _FEED_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 _MAX_FEED_BYTES = 5_000_000
-_MAX_OBSERVATION_ENTRIES_PER_FEED = 8
 _MAX_OBSERVATION_PATTERNS_PER_FEED = 5
 _TRACKING_QUERY_KEYS = {
     "fbclid",
@@ -85,9 +85,7 @@ class RssConnector(BaseConnector):
     onboard_prompt = "Set up RSS feeds?"
     onboard_last = True
     appears_in_auth_status = False
-
-    def __init__(self) -> None:
-        self._observation_patterns: list[str] | None = None
+    observation_url_patterns_timeout_seconds: float | None = None
 
     @classmethod
     def run_auth_flow(
@@ -238,38 +236,22 @@ class RssConnector(BaseConnector):
         )
 
     async def observation_url_patterns(self) -> list[str]:
-        if self._observation_patterns is not None:
-            return self._observation_patterns
         try:
             settings = load_rss_settings()
         except RuntimeError:
             return []
 
         backend = get_backend()
-        feed_urls_by_entity_id = {
-            f"feed/{_feed_id(feed_url)}": feed_url for feed_url in settings.feed_urls
-        }
-        metadata_by_feed_entity_id = await backend.list_recent_metadata_by_edge_target(
-            "Document",
-            {"platform": self.source},
-            "posted_in",
-            self.source,
-            list(feed_urls_by_entity_id),
-            _MAX_OBSERVATION_ENTRIES_PER_FEED,
-        )
-        derived_patterns = derive_observation_url_patterns(
-            {
-                feed_urls_by_entity_id[feed_entity_id]: _entry_links(metadata_rows)
-                for feed_entity_id, metadata_rows in metadata_by_feed_entity_id.items()
-                if feed_entity_id in feed_urls_by_entity_id
-            }
-        )
-        patterns = list(dict.fromkeys(derived_patterns))
-        # A transient database timeout must not prevent later metadata refreshes
-        # from discovering patterns once the database is responsive again.
-        if patterns:
-            self._observation_patterns = patterns
-        return patterns
+        links_by_feed: dict[str, list[str]] = {}
+        for feed_url in settings.feed_urls:
+            feed = await backend.get_entity_by_platform(
+                self.source, f"feed/{_feed_id(feed_url)}"
+            )
+            content = feed.get("content") if feed is not None else None
+            if not isinstance(content, str) or not content:
+                continue
+            links_by_feed[feed_url] = await asyncio.to_thread(_article_links_from_feed_xml, content)
+        return derive_observation_url_patterns(links_by_feed)
 
     async def ingest(
         self,
@@ -300,9 +282,6 @@ class RssConnector(BaseConnector):
             combined.metadata_patches.extend(batch.metadata_patches)
             combined.edges.extend(batch.edges)
             combined.persons.extend(batch.persons)
-        # The batch may omit already-indexed articles during polling, so it cannot
-        # represent the complete set of patterns. Reload from indexed entries.
-        self._observation_patterns = None
         return combined
 
     async def poll(
@@ -349,7 +328,11 @@ async def _fetch_feed(
     new_documents_only: bool = False,
     skip_existing_urls: bool = False,
 ) -> EntityBatch:
-    parsed = await _parse_feed(feed_url)
+    parsed_result = await _parse_feed(feed_url)
+    raw_content = (
+        parsed_result.raw_content if isinstance(parsed_result, _ParsedFeedPayload) else None
+    )
+    parsed = parsed_result.parsed if isinstance(parsed_result, _ParsedFeedPayload) else parsed_result
     feed_title = str(cast(dict[str, Any], parsed.feed).get("title") or feed_url)
     feed_id = _feed_id(feed_url)
     feed_entity_id = f"feed/{feed_id}"
@@ -359,7 +342,8 @@ async def _fetch_feed(
             platform="rss",
             platform_entity_id=feed_entity_id,
             title=feed_title,
-            content=f"RSS feed: {feed_title}\n{feed_url}",
+            content=raw_content or f"RSS feed: {feed_title}\n{feed_url}",
+            content_searchable=raw_content is None,
             metadata={"feed_url": feed_url, "web_url": feed_url},
             retention_policy="persistent",
         )
@@ -451,8 +435,6 @@ async def _rss_article_url_exists(article_url: str) -> bool:
 
 
 async def _parse_feed(feed_url: str) -> Any:
-    import asyncio
-
     import feedparser  # type: ignore[import-untyped]
 
     response = await fetch_http_resource(
@@ -465,7 +447,32 @@ async def _parse_feed(feed_url: str) -> Any:
         timeout=_FEED_TIMEOUT,
         max_redirects=5,
     )
-    return await asyncio.to_thread(feedparser.parse, response.content)
+    parsed = await asyncio.to_thread(feedparser.parse, response.content)
+    return _ParsedFeedPayload(
+        parsed=parsed,
+        raw_content=response.content.decode("utf-8", errors="replace"),
+    )
+
+
+@dataclass(frozen=True)
+class _ParsedFeedPayload:
+    parsed: Any
+    raw_content: str
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.parsed, name)
+
+
+def _article_links_from_feed_xml(content: str) -> list[str]:
+    import feedparser  # type: ignore[import-untyped]
+
+    parsed = feedparser.parse(content)
+    links: list[str] = []
+    for entry in cast(list[Any], parsed.entries):
+        link = entry.get("link") if isinstance(entry, Mapping) else None
+        if isinstance(link, str) and link:
+            links.append(link)
+    return links
 
 
 def _rss_usage() -> str:
@@ -839,13 +846,6 @@ def _is_tracking_query_key(key: str) -> bool:
     return key.lower().startswith("utm_") or key.lower() in _TRACKING_QUERY_KEYS
 
 
-def _entry_links(metadata_rows: Sequence[Mapping[str, object]]) -> list[str]:
-    links: list[str] = []
-    for metadata in metadata_rows:
-        link = _metadata_str(metadata, "web_url") or _metadata_str(metadata, "link")
-        if link is not None:
-            links.append(link)
-    return links
 
 
 def _entry_text(entry: dict[str, Any]) -> str:

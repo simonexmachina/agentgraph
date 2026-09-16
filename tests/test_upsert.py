@@ -163,6 +163,50 @@ async def test_upsert_entity_and_edge(sqlite_backend: SQLiteBackend) -> None:
     assert edge_count == 1
 
 
+async def test_unsearchable_content_is_retrievable_without_fts_or_embedding(
+    sqlite_backend: SQLiteBackend,
+) -> None:
+    initial = EntityRecord(
+        entity_type="Folder",
+        platform="rss",
+        platform_entity_id="feed/raw",
+        title="Raw feed",
+        content="initial content",
+    )
+    await upsert_batch(EntityBatch(entities=[initial]))
+
+    payload = "<rss><channel><item><link>https://example.com/article</link></item></channel></rss>"
+    await upsert_batch(
+        EntityBatch(
+            entities=[
+                EntityRecord(
+                    entity_type="Folder",
+                    platform="rss",
+                    platform_entity_id="feed/raw",
+                    title="Raw feed",
+                    content=payload,
+                    content_searchable=False,
+                )
+            ]
+        )
+    )
+
+    stored = await sqlite_backend._fetchone(
+        "SELECT id, content, content_embedding FROM entities WHERE platform_entity_id = ?",
+        ["feed/raw"],
+    )
+    assert stored is not None
+    assert stored["content"] == payload
+    assert stored["content_embedding"] is None
+
+    fts = await sqlite_backend._fetchone(
+        "SELECT title, content FROM entities_fts WHERE id = ?", [stored["id"]]
+    )
+    assert fts is not None
+    assert fts["title"] == "Raw feed"
+    assert fts["content"] == ""
+
+
 async def test_list_recent_metadata_by_edge_target_returns_newest_metadata_per_target(
     sqlite_backend: SQLiteBackend,
 ) -> None:

@@ -15,7 +15,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import feedparser  # type: ignore[import-untyped]
 import pytest
 from agentgraph_connector_rss import (
-    _MAX_OBSERVATION_ENTRIES_PER_FEED,
     FeedAuthor,
     RssConnector,
     _feed_id,
@@ -126,8 +125,14 @@ async def test_rss_observation_patterns_use_a_bounded_recent_entry_set() -> None
     feed_url = "https://example.com/feed.xml"
     feed_entity_id = f"feed/{_feed_id(feed_url)}"
     backend = MagicMock()
-    backend.list_recent_metadata_by_edge_target = AsyncMock(
-        return_value={feed_entity_id: [{"web_url": "https://example.com/articles/first"}]}
+    backend.get_entity_by_platform = AsyncMock(
+        return_value={
+            "content": """<?xml version="1.0"?>
+            <rss version="2.0"><channel>
+              <item><link>https://example.com/articles/first</link></item>
+              <item><link>https://example.com/articles/second</link></item>
+            </channel></rss>"""
+        }
     )
     set_backend(backend)
 
@@ -137,26 +142,19 @@ async def test_rss_observation_patterns_use_a_bounded_recent_entry_set() -> None
     ):
         patterns = await RssConnector().observation_url_patterns()
 
-    assert patterns == ["https://example.com/*"]
-    backend.list_recent_metadata_by_edge_target.assert_awaited_once_with(
-        "Document",
-        {"platform": "rss"},
-        "posted_in",
-        "rss",
-        [feed_entity_id],
-        _MAX_OBSERVATION_ENTRIES_PER_FEED,
-    )
+    assert patterns == ["https://example.com/articles/*"]
+    backend.get_entity_by_platform.assert_awaited_once_with("rss", feed_entity_id)
 
 
 @pytest.mark.asyncio
-async def test_rss_observation_patterns_retry_after_an_empty_result() -> None:
+async def test_rss_observation_patterns_read_current_feed_content_on_every_request() -> None:
     feed_url = "https://example.com/feed.xml"
     feed_entity_id = f"feed/{_feed_id(feed_url)}"
     backend = MagicMock()
-    backend.list_recent_metadata_by_edge_target = AsyncMock(
+    backend.get_entity_by_platform = AsyncMock(
         side_effect=[
-            {},
-            {feed_entity_id: [{"web_url": "https://example.com/articles/first"}]},
+            {"content": "<rss><channel><item><link>https://example.com/first</link></item></channel></rss>"},
+            {"content": "<rss><channel><item><link>https://other.example/second</link></item></channel></rss>"},
         ]
     )
     set_backend(backend)
@@ -166,9 +164,11 @@ async def test_rss_observation_patterns_retry_after_an_empty_result() -> None:
         return_value=RssConfig(feed_urls=[feed_url]),
     ):
         connector = RssConnector()
-        assert await connector.observation_url_patterns() == []
-        assert connector._observation_patterns is None
         assert await connector.observation_url_patterns() == ["https://example.com/*"]
+        assert await connector.observation_url_patterns() == ["https://other.example/*"]
+
+    assert backend.get_entity_by_platform.await_count == 2
+    backend.get_entity_by_platform.assert_any_await("rss", feed_entity_id)
 
 
 @pytest.mark.asyncio
@@ -1005,8 +1005,37 @@ async def test_parse_feed_uses_shared_web_http_fetcher(monkeypatch: pytest.Monke
     parsed = await _parse_feed("https://example.com/feed.xml")
 
     assert parsed.feed.title == "Example"
+    assert "<rss version=\"2.0\">" in parsed.raw_content
     fetch.assert_awaited_once()
     assert fetch.await_args.kwargs["max_bytes"] == 5_000_000
+
+
+@pytest.mark.asyncio
+async def test_fetch_feed_persists_raw_feed_payload_without_indexing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    content = b"""<?xml version="1.0"?>
+    <rss version="2.0"><channel><title>Example</title>
+    <item><title>One</title><link>https://example.com/one</link></item>
+    </channel></rss>"""
+    monkeypatch.setattr(
+        "agentgraph_connector_rss.fetch_http_resource",
+        AsyncMock(
+            return_value=HttpFetchResult(
+                url="https://example.com/feed.xml",
+                status_code=200,
+                headers={"content-type": "application/rss+xml"},
+                content=content,
+            )
+        ),
+    )
+
+    batch = await _fetch_feed("https://example.com/feed.xml")
+
+    feed = batch.entities[0]
+    assert feed.entity_type == "Folder"
+    assert feed.content == content.decode("utf-8")
+    assert feed.content_searchable is False
 
 
 def test_resolve_feed_source_uses_shared_web_http_fetcher(
@@ -1627,9 +1656,8 @@ async def test_rss_ingest_skips_failed_feed(
 
 
 @pytest.mark.asyncio
-async def test_rss_ingest_invalidates_observation_pattern_cache() -> None:
+async def test_rss_ingest_does_not_cache_observation_patterns() -> None:
     connector = RssConnector()
-    connector._observation_patterns = ["https://example.com/articles/*"]
     batch = EntityBatch(
         entities=[
             EntityRecord(
@@ -1651,7 +1679,7 @@ async def test_rss_ingest_invalidates_observation_pattern_cache() -> None:
     ):
         await connector.ingest(skip_existing_urls=True)
 
-    assert connector._observation_patterns is None
+    assert not hasattr(connector, "_observation_patterns")
 
 
 @pytest.mark.asyncio

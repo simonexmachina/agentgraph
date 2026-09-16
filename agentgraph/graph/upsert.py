@@ -72,7 +72,7 @@ def _build_embeddings(
 
     entity_embeddings: dict[str, list[float] | None] = {}
     for e in batch.entities:
-        if not e.is_stub and e.content:
+        if not e.is_stub and e.content and e.content_searchable:
             text = f"{e.title or ''} {e.content}".strip()
             entity_embeddings[e.platform_entity_id] = encode_passage(text)
         else:
@@ -96,6 +96,11 @@ async def _link_references(
     linked_refs: set[tuple[str, str]] = set()
     for entity in batch.entities:
         ref = (entity.platform, entity.platform_entity_id)
-        if entity.content and ref in upserted_refs and ref not in linked_refs:
+        if (
+            entity.content
+            and entity.content_searchable
+            and ref in upserted_refs
+            and ref not in linked_refs
+        ):
             linked_refs.add(ref)
             await link_entity_to_urls(entity.platform_entity_id, entity.platform, entity.content)
