@@ -71,11 +71,11 @@ Install the [AgentGraph Chrome Extension](https://chromewebstore.google.com/deta
 
 After the extension is installed, start `agentgraph serve`, then open a supported resource and keep it focused past the default three-second observation threshold.
 
-## Optional: Connect an MCP client
+## Connect an MCP client
 
-AgentGraph ships an MCP server, so any MCP client can search and traverse the graph.
-It is supported in **ChatGPT Desktop Work Mode**, **Codex**, **Claude Desktop**, and
-**Claude Code**. To print the setup for all of them:
+AgentGraph ships an MCP server, so any local MCP client can search and traverse the
+graph. MCP is the recommended connection for **ChatGPT Desktop Work Mode**, **Codex**,
+**Claude Desktop**, and **Claude Code**. To print the setup for all of them:
 
 ```bash
 agentgraph mcp-config
@@ -85,7 +85,7 @@ agentgraph mcp-config
 
 ```bash
 codex mcp add agentgraph -- "$(which agentgraph)" mcp-serve
-claude mcp add agentgraph -- "$(which agentgraph)" mcp-serve
+claude mcp add --transport stdio --scope user agentgraph -- "$(which agentgraph)" mcp-serve
 ```
 
 **ChatGPT Desktop Work Mode** takes the same command through its MCP configuration
@@ -100,6 +100,10 @@ How those tools reach the graph follows
 [`AGENTGRAPH_QUERY_TRANSPORT`](configuration.html#agentgraph-query-transport): by
 default the local server when one is reachable, otherwise the database directly, so
 the MCP client works whether or not `agentgraph serve` is running.
+
+The installed skill is a CLI fallback for terminal workflows and clients without MCP.
+ChatGPT Web and Claude cloud sessions need a separately hosted remote MCP server and
+are not covered by this local setup.
 
 ## Run in the background
 

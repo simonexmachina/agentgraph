@@ -113,9 +113,11 @@ agentgraph mcp-serve
 agentgraph install-skill [agentgraph] [--target user|project] [--no-claude] [--force] [--json]
 ```
 
-`agentgraph mcp-config` prints local stdio setup for ChatGPT Desktop Work Mode and
-Claude Desktop. In ChatGPT Desktop, enter the printed executable in **Command to
-launch** and `mcp-serve` in **Arguments**; for Claude Desktop, add the printed JSON
-to its MCP configuration file.
+`agentgraph mcp-config` prints local stdio setup for ChatGPT Desktop Work Mode, Codex,
+Claude Desktop, and Claude Code. Prefer these MCP connections when they are available.
+In ChatGPT Desktop, enter the printed executable in **Command to launch** and
+`mcp-serve` in **Arguments**; for Claude Desktop, add the printed JSON to its MCP
+configuration file. Claude Code uses the printed user-scoped command so the server is
+available across projects.
 
 The skill installer is available only through the `agentgraph install-skill` CLI command.

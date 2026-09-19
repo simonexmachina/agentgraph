@@ -849,7 +849,7 @@ def mcp_config() -> None:
     typer.echo()
     typer.echo("Claude Code:")
     typer.echo("  Register the server from your terminal:\n")
-    typer.echo(f"  claude mcp add agentgraph -- {binary} mcp-serve")
+    typer.echo(f"  claude mcp add --transport stdio --scope user agentgraph -- {binary} mcp-serve")
     typer.echo()
     typer.echo("Every client above runs the same server. Reads follow")
     typer.echo("AGENTGRAPH_QUERY_TRANSPORT: by default the local server when one is")
