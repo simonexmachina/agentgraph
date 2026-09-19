@@ -528,6 +528,40 @@ def test_slash_focuses_search_without_intercepting_text_input(page: Page) -> Non
         expect(lookup_input).to_have_value("/")
 
 
+def test_j_and_k_move_through_the_entity_list(page: Page) -> None:
+    nodes = [_node(1, "First entity"), _node(2, "Second entity"), _node(3, "Third entity")]
+    with _serve_viewer(nodes, []) as url:
+        _wait_for_graph(page, f"{url}?view=list", 0)
+        expect(page.locator("#node-list-body tr")).to_have_count(3)
+
+        page.locator('tr[data-entity-id="node-1"]').click()
+        page.keyboard.press("j")
+        expect(page.locator('tr[data-entity-id="node-2"]')).to_have_attribute("aria-selected", "true")
+        expect(page.locator("#detail-title")).to_have_text("node-2")
+
+        page.keyboard.press("k")
+        expect(page.locator('tr[data-entity-id="node-1"]')).to_have_attribute("aria-selected", "true")
+        expect(page.locator("#detail-title")).to_have_text("node-1")
+
+
+def test_shortcut_help_button_toggles_the_right_pane(page: Page) -> None:
+    nodes = [_node(1, "Shortcut entity")]
+    with _serve_viewer(nodes, []) as url:
+        _wait_for_graph(page, url, len(nodes))
+        help_button = page.get_by_role("button", name="Keyboard shortcuts", exact=True)
+
+        help_button.click()
+        expect(help_button).to_have_attribute("aria-pressed", "true")
+        expect(page.locator("#detail")).to_have_class("open")
+        expect(page.locator("#detail-title")).to_have_text("Keyboard shortcuts")
+        expect(page.locator("#shortcut-body")).to_be_visible()
+
+        help_button.click()
+        expect(help_button).to_have_attribute("aria-pressed", "false")
+        expect(page.locator("#detail")).not_to_have_class("open")
+        expect(page.locator("#shortcut-body")).to_be_hidden()
+
+
 def test_i_toggles_selected_node_detail_without_intercepting_text_input(page: Page) -> None:
     nodes = [_node(1, "Keyboard detail"), _node(2, "Other node")]
     with _serve_viewer(nodes, []) as url:

@@ -407,6 +407,23 @@ def test_viewer_list_rows_match_graph_click_behaviour() -> None:
     assert "focusNode(node.data('id'));" in viewer_html
 
 
+def test_viewer_supports_list_navigation_and_shortcut_help() -> None:
+    """The viewer exposes j/k list navigation and a right-pane shortcut guide."""
+    viewer_html = Path("agentgraph/server/static/viewer.html").read_text()
+
+    assert 'id="shortcut-help-btn"' in viewer_html
+    assert 'aria-label="Keyboard shortcuts"' in viewer_html
+    assert 'id="shortcut-body" hidden' in viewer_html
+    assert '<kbd>j</kbd>' in viewer_html
+    assert '<kbd>k</kbd>' in viewer_html
+    assert "function moveListSelection(delta)" in viewer_html
+    assert "showEntityDetail(nextId);" in viewer_html
+    assert "key === 'j' || key === 'k'" in viewer_html
+    assert "function toggleShortcutHelp()" in viewer_html
+    assert "setShortcutHelpMode(true);" in viewer_html
+    assert "setShortcutHelpMode(false);" in viewer_html
+
+
 def test_viewer_truncates_list_names_at_100_characters() -> None:
     """List names stay within a fixed, readable character limit."""
     viewer_html = Path("agentgraph/server/static/viewer.html").read_text()
