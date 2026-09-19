@@ -3,15 +3,15 @@ name: agentgraph
 description: Use AgentGraph through its CLI or MCP tools to search and traverse selected local context, retrieve full source-backed evidence, fetch missing or stale resources, and troubleshoot connector availability.
 ---
 
-# AgentGraph CLI skill
+# AgentGraph skill
 
 AgentGraph is a local knowledge graph for the agent the user already uses. It stores
 selected messages, documents, people, feeds, pages, and relationships; the agent is
 responsible for searching that graph, comparing evidence, and explaining its reasoning.
 
-Prefer the `agentgraph` CLI when a shell is available. Use the equivalent MCP tools
-when AgentGraph is connected directly to the agent. Do not query AgentGraph's SQLite
-database or connector internals directly.
+Prefer the connected MCP tools when AgentGraph is available through MCP. Use the
+`agentgraph` CLI when MCP is unavailable or when a terminal script is the natural
+interface. Do not query AgentGraph's SQLite database or connector internals directly.
 
 ## Commands that use the local server
 

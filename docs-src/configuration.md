@@ -213,46 +213,17 @@ grants `agentgraph` your full user privileges, so prefer the socket allowlist.
 
 ### Codex
 
-Codex has two mutually exclusive permission systems. Use a **permission profile** —
-if `sandbox_mode` or `[sandbox_workspace_write]` appears in any active config layer,
-or you pass `--sandbox`, the older system wins and this section does not apply.
-
-In `~/.codex/config.toml` or the project's `.codex/config.toml`, place
-`default_permissions` at the **top level, before any `[section]` header**:
-
-```toml
-default_permissions = "agentgraph"
-```
-
-Do not append this line after an existing section: TOML treats it as part of that
-section. The permission tables below can go at the bottom of the file:
-
-```toml
-[permissions.agentgraph]
-extends = ":workspace"
-
-[permissions.agentgraph.network]
-enabled = true
-
-[permissions.agentgraph.network.unix_sockets]
-"/Users/you/.agentgraph/agentgraph.sock" = "allow"
-```
-
-`network.enabled = true` is required. On Codex 0.145.0 a `unix_sockets` entry has no
-effect while networking is disabled, despite what the permissions reference implies.
-Note that enabling networking also permits loopback TCP, so on Codex either transport
-works; restrict outbound hosts with `[permissions.agentgraph.network.domains]`.
-
-To check a policy without starting a session, `codex sandbox` runs a single command
-under the sandbox and `--log-denials` names the exact rule that blocked it:
+Use the local MCP server for Codex Desktop and TUI access. MCP servers have their own
+configuration and approval controls, separate from the shell sandbox permission mode;
+installing AgentGraph does not add an AgentGraph-specific permission profile.
 
 ```bash
-codex sandbox --allow-unix-socket ~/.agentgraph --log-denials -- \
-  agentgraph search "roadmap" --json --limit 3
+codex mcp add agentgraph -- "$(which agentgraph)" mcp-serve
 ```
 
-`--allow-unix-socket` takes a path *root* and is a debugging flag on that subcommand;
-it does not configure a live session.
+The ChatGPT Desktop app and Codex TUI share the host MCP configuration. Use the CLI
+skill for terminal workflows when MCP is unavailable. See [Install](install.html) for
+the complete client setup.
 
 ### OpenCode
 

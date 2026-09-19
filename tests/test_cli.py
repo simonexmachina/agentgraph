@@ -594,7 +594,7 @@ def test_mcp_config_covers_the_coding_agent_clients(monkeypatch: pytest.MonkeyPa
 
     assert result.exit_code == 0
     assert "codex mcp add agentgraph -- agentgraph mcp-serve" in result.output
-    assert "claude mcp add agentgraph -- agentgraph mcp-serve" in result.output
+    assert "claude mcp add --transport stdio --scope user agentgraph -- agentgraph mcp-serve" in result.output
     # Every client shares one transport setting, so say so once rather than per client.
     assert "AGENTGRAPH_QUERY_TRANSPORT" in result.output
 
@@ -612,7 +612,7 @@ def test_install_skill_defaults_to_user_agent_and_claude_skills(
     skill_path = home / ".agents" / "skills" / "agentgraph" / "SKILL.md"
     assert skill_path.is_file()
     skill_content = skill_path.read_text(encoding="utf-8")
-    assert "AgentGraph CLI skill" in skill_content
+    assert "# AgentGraph skill" in skill_content
     assert "`agentgraph poll`" in skill_content
     assert "request permission to\n  contact the local server" in skill_content
     assert "AGENTGRAPH_QUERY_TRANSPORT=in-process" in skill_content
@@ -698,7 +698,7 @@ def test_install_skill_force_overwrites_existing_skill(
     assert parsed["skill"] == "agentgraph"
     assert parsed["target"] == "user"
     assert parsed["overwritten"] is True
-    assert "AgentGraph CLI skill" in skill_path.read_text(encoding="utf-8")
+    assert "# AgentGraph skill" in skill_path.read_text(encoding="utf-8")
 
 
 def test_install_skill_succeeds_when_claude_skills_links_to_agent_skills(
@@ -746,7 +746,7 @@ def test_install_skill_force_reinstalls_through_a_linked_claude_directory(
     parsed = json.loads(result.output)
     assert parsed["overwritten"] is True
     assert parsed["claude_linked"] is False
-    assert "AgentGraph CLI skill" in skill_path.read_text(encoding="utf-8")
+    assert "# AgentGraph skill" in skill_path.read_text(encoding="utf-8")
 
 
 def test_install_skill_force_replaces_a_separate_claude_link(

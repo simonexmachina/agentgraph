@@ -75,6 +75,7 @@ def test_build_writes_docs_site(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     architecture_svg = output_dir / "assets" / "diagrams" / "architecture-overview-dark.svg"
     index_html = (output_dir / "index.html").read_text(encoding="utf-8")
     install_html = (output_dir / "install.html").read_text(encoding="utf-8")
+    configuration_html = (output_dir / "configuration.html").read_text(encoding="utf-8")
     extending_html = (output_dir / "extending.html").read_text(encoding="utf-8")
     rss_html = (output_dir / "rss.html").read_text(encoding="utf-8")
     commands_html = (output_dir / "commands" / "index.html").read_text(encoding="utf-8")
@@ -171,7 +172,8 @@ def test_build_writes_docs_site(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     assert "agentgraph-connector-google" not in install_html
     assert "uv sync" not in install_html
     assert "source .venv" not in install_html
-    assert "Optional: Connect an MCP client" in install_html
+    assert "Connect an MCP client" in install_html
+    assert 'default_permissions = "agentgraph"' not in configuration_html
     # The supported clients are named explicitly rather than split into "desktop" and
     # "coding agent", which put Codex on the wrong side of the distinction.
     for client in ("ChatGPT Desktop Work Mode", "Codex", "Claude Desktop", "Claude Code"):

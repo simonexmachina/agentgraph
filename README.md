@@ -81,7 +81,7 @@ Connect the agent you already use:
 agentgraph mcp-config
 ```
 
-Use the printed instructions to connect ChatGPT Desktop Work Mode or Claude Desktop to the local stdio server. See [Install](docs-src/install.md) for the complete setup path.
+Use the printed instructions to connect ChatGPT Desktop Work Mode, Codex, Claude Desktop, or Claude Code to the local stdio server. MCP is the preferred connection; the installed skill provides CLI fallback workflows. See [Install](docs-src/install.md) for the complete setup path.
 
 ## What AgentGraph is and is not
 
