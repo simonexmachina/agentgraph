@@ -92,6 +92,13 @@ class TombstoneMutation(BaseModel):
     target: MutationTarget
 
 
+class TombstoneBatchMutation(BaseModel):
+    event_id: UUID = Field(default_factory=uuid4)
+    kind: Literal["tombstone_batch"] = "tombstone_batch"
+    occurred_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    targets: list[MutationTarget] = Field(min_length=1)
+
+
 class EntityUpsertMutation(BaseModel):
     event_id: UUID = Field(default_factory=uuid4)
     kind: Literal["upsert"] = "upsert"
@@ -102,7 +109,11 @@ class EntityUpsertMutation(BaseModel):
 
 
 type MutationEvent = (
-    ObservationMutation | BookmarkMutation | TombstoneMutation | EntityUpsertMutation
+    ObservationMutation
+    | BookmarkMutation
+    | TombstoneMutation
+    | TombstoneBatchMutation
+    | EntityUpsertMutation
 )
 
 

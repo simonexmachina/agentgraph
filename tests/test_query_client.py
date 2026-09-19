@@ -131,7 +131,7 @@ def test_uds_probe_skips_when_socket_is_disabled() -> None:
 @pytest.mark.parametrize(
     ("status", "payload", "expected"),
     [
-        (200, {"status": "ok", "routes": "resource2"}, True),
+        (200, {"status": "ok", "routes": "resource3"}, True),
         # A server new enough to answer the probe but too old to serve the reshaped
         # search route: `auto` must fall back in-process rather than 404 every read.
         (200, {"status": "ok", "routes": "resource"}, False),
@@ -178,7 +178,7 @@ def test_socket_transports_skip_the_ssl_context() -> None:
             return False
 
         def get(self, _path: str) -> httpx.Response:
-            return httpx.Response(200, json={"status": "ok", "routes": "resource2"})
+            return httpx.Response(200, json={"status": "ok", "routes": "resource3"})
 
     client = HttpQueryClient("http://localhost", uds_path=Path("/tmp/ag.sock"))
 

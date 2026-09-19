@@ -77,7 +77,7 @@ async def capabilities() -> dict[str, Any]:
     accepts the connection and then 404s every call, so the CLI's `auto` transport
     would hard-fail where it should fall back to in-process.
     """
-    return {"status": "ok", "routes": "resource2"}
+    return {"status": "ok", "routes": "resource3"}
 
 
 @router.post("/entities/search")
@@ -118,6 +118,15 @@ async def search_entities(
     )
     summarized = summarize_entities(results)
     return with_display_names(summarized) if _wants_display(include) else summarized
+
+
+@router.post("/entities/delete")
+async def delete_entities(
+    targets: list[str] = Body(..., embed=True, min_length=1),
+) -> dict[str, Any]:
+    from agentgraph.graph.delete import delete_entities as impl
+
+    return await impl(targets)
 
 
 @router.post("/fetches")

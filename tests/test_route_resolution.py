@@ -18,6 +18,7 @@ from agentgraph.server.app import app
 # (path, method, expected handler name)
 CASES = [
     ("/api/entities/search", "POST", "search_entities"),
+    ("/api/entities/delete", "POST", "delete_entities"),
     ("/api/capabilities", "GET", "capabilities"),
     ("/api/entities/22c57772-78cb-4234-ada7-36730b26e52c", "GET", "get_entity"),
     ("/api/entities/slack/TDEMO/CATLAS", "GET", "get_entity"),

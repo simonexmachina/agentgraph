@@ -27,7 +27,7 @@ _PROBE_TIMEOUT_MULTIPLIER = 1.0
 # `routes` markers from /api/capabilities this client knows how to talk to. Bumped
 # whenever a route's shape changes incompatibly, so an older server is treated as
 # unavailable instead of 404ing every read. See `server/graph_api.capabilities`.
-_SUPPORTED_ROUTE_MARKERS = {"resource2"}
+_SUPPORTED_ROUTE_MARKERS = {"resource3"}
 
 # Every URL here is plain http:// over a Unix socket or loopback, so TLS is never
 # negotiated. httpx still builds an SSL context eagerly in its transport constructor,
@@ -85,6 +85,8 @@ class QueryClient(Protocol):
     async def bookmark(self, target: str, bookmarked: bool) -> dict[str, Any]: ...
 
     async def delete(self, target: str) -> dict[str, Any]: ...
+
+    async def delete_many(self, targets: list[str]) -> dict[str, Any]: ...
 
     async def unify_persons(
         self,
@@ -192,6 +194,11 @@ class InProcessQueryClient:
         from agentgraph.graph.delete import delete_entity
 
         return await delete_entity(target)
+
+    async def delete_many(self, targets: list[str]) -> dict[str, Any]:
+        from agentgraph.graph.delete import delete_entities
+
+        return await delete_entities(targets)
 
     async def unify_persons(
         self,
@@ -420,6 +427,12 @@ class HttpQueryClient:
         return cast(
             dict[str, Any],
             await self._request("DELETE", f"/api/entities/{_ref(target)}"),
+        )
+
+    async def delete_many(self, targets: list[str]) -> dict[str, Any]:
+        return cast(
+            dict[str, Any],
+            await self._post("/api/entities/delete", {}, json={"targets": targets}),
         )
 
     async def unify_persons(

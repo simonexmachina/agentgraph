@@ -256,7 +256,15 @@ def test_delete_command_dispatches_to_cli_query() -> None:
         result = runner.invoke(app, ["delete", "abc123", "--json"])
 
     assert result.exit_code == 0
-    cmd_delete.assert_called_once_with(target="abc123", as_json=True)
+    cmd_delete.assert_called_once_with(targets=["abc123"], as_json=True)
+
+
+def test_delete_command_accepts_multiple_targets() -> None:
+    with patch("agentgraph.cli_query.cmd_delete") as cmd_delete:
+        result = runner.invoke(app, ["delete", "first", "second", "--json"])
+
+    assert result.exit_code == 0
+    cmd_delete.assert_called_once_with(targets=["first", "second"], as_json=True)
 
 
 def test_get_url_uses_shared_operation_without_http() -> None:
@@ -369,9 +377,27 @@ def test_delete_uses_graph_operation_without_http() -> None:
         ) as delete_entity,
         patch("httpx.post", side_effect=AssertionError("unexpected HTTP POST")),
     ):
-        cmd_delete("abc123", as_json=True)
+        cmd_delete(["abc123"], as_json=True)
 
     delete_entity.assert_awaited_once_with("abc123")
+
+
+def test_delete_multiple_uses_bulk_graph_operation_without_http() -> None:
+    from agentgraph.cli_query import cmd_delete
+
+    result = {"deleted_count": 2, "entities": [{"id": "one"}, {"id": "two"}]}
+    with (
+        patch("agentgraph.cli_query.backend_context", _fake_backend_context),
+        patch("agentgraph.connectors.registry.bootstrap"),
+        patch(
+            "agentgraph.graph.delete.delete_entities",
+            new=AsyncMock(return_value=result),
+        ) as delete_entities,
+        patch("httpx.post", side_effect=AssertionError("unexpected HTTP POST")),
+    ):
+        cmd_delete(["first", "second"], as_json=True)
+
+    delete_entities.assert_awaited_once_with(["first", "second"])
 
 
 def test_unify_persons_shows_the_canonical_person(capsys: pytest.CaptureFixture[str]) -> None:

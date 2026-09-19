@@ -342,7 +342,22 @@ def cmd_bookmark(target: str, bookmarked: bool, as_json: bool) -> None:
     console.print(f"[green]{action}:[/green] {label} [{result['id'][:8]}]")
 
 
-def cmd_delete(target: str, as_json: bool) -> None:
+def cmd_delete(targets: list[str], as_json: bool) -> None:
+    if len(targets) == 1:
+        _cmd_delete_one(targets[0], as_json)
+        return
+
+    async def operation(client: QueryClient) -> dict[str, Any]:
+        return await client.delete_many(targets)
+
+    result = _run_with_client(operation)
+    if as_json:
+        console.print_json(json.dumps(result, default=str))
+        return
+    console.print(f"[green]Deleted {result['deleted_count']} entities.[/green]")
+
+
+def _cmd_delete_one(target: str, as_json: bool) -> None:
     async def operation(client: QueryClient) -> dict[str, Any]:
         return await client.delete(target)
 

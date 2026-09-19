@@ -75,6 +75,7 @@ def test_server_exposes_only_viewer_extension_and_sync_routes() -> None:
         "/api/meta",
         "/api/capabilities",
         "/api/entities/search",
+        "/api/entities/delete",
         "/api/entities/{ref:path}",
         "/api/entities/{ref:path}/edges",
         "/api/entities/{ref:path}/bookmark",

@@ -36,6 +36,8 @@ date; a query ranks them by relevance.
   graph operation calls it into question.
 - Confirm Person merges, deletion, credential removal, and removal of bookmark
   protection with the user.
+- A multi-target deletion resolves every target before changing the graph; it either
+  deletes the resolved set or leaves the graph unchanged.
 
 ## References
 

@@ -76,6 +76,11 @@ class StorageBackend(ABC):
         """Delete an entity and return the deleted entity."""
         ...
 
+    @abstractmethod
+    async def delete_entities(self, entity_ids: list[str]) -> list[EntityResult]:
+        """Atomically delete entities and return their deleted snapshots."""
+        ...
+
     # --- Read: entities ---
 
     @abstractmethod

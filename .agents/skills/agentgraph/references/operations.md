@@ -70,13 +70,15 @@ forms are `run_connector_command_tool("web", ["observe", "<url-or-prefix>"])` an
 ```bash
 agentgraph download <entity-id|platform/ref> [--output <file-or-dir>] [--json]
 agentgraph bookmark <entity-id|platform/ref|url> [--remove] [--json]
-agentgraph delete <entity-id|platform/ref|url> [--json]
+agentgraph delete <entity-id|platform/ref|url>... [--json]
 agentgraph unify-persons <primary-person-id> <duplicate-person-id>... [--json]
 ```
 
-Use `download_entity_tool`, `bookmark_entity_tool`, `delete_entity_tool`, and
-`unify_persons_tool` through MCP. Confirm identity before person unification. The
-first Person is canonical and keeps its ID. Deletion removes connected edges.
+Use `download_entity_tool`, `bookmark_entity_tool`, `delete_entity_tool`,
+`delete_entities_tool`, and `unify_persons_tool` through MCP. Confirm identity before
+person unification. The first Person is canonical and keeps its ID. Multi-target
+deletion resolves every target before deleting any of them, removes connected edges,
+and returns compact references for the deleted entities.
 
 ## Server and skill setup
 

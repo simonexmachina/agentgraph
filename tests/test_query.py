@@ -103,6 +103,7 @@ def _mock_backend(**method_overrides: Any) -> Any:
         "get_platforms_last_synced_at": AsyncMock(return_value={}),
         "set_entity_bookmarked": AsyncMock(return_value=_entity(title="Bookmarked Doc")),
         "delete_entity": AsyncMock(return_value=_entity(title="Deleted Doc")),
+        "delete_entities": AsyncMock(return_value=[]),
     }
     for name, value in {**defaults, **method_overrides}.items():
         setattr(backend, name, value)
@@ -887,6 +888,54 @@ async def test_delete_entity_missing_raises_value_error() -> None:
 
 
 @pytest.mark.asyncio
+async def test_delete_entities_resolves_deduplicates_and_notifies_once() -> None:
+    from agentgraph.graph.delete import delete_entities
+
+    first = _entity(title="First")
+    second = _entity(title="Second")
+    backend = _mock_backend(
+        get_entity_by_id=AsyncMock(side_effect=[first, first, second]),
+        delete_entities=AsyncMock(return_value=[first, second]),
+    )
+    set_backend(backend)
+
+    with patch(
+        "agentgraph.connectors.feed.notify_feed_connectors", new=AsyncMock()
+    ) as notify:
+        result = await delete_entities([first["id"], first["id"], second["id"]])
+
+    assert result["deleted_count"] == 2
+    assert [entity["id"] for entity in result["entities"]] == [first["id"], second["id"]]
+    backend.delete_entities.assert_awaited_once_with([first["id"], second["id"]])
+    notify.assert_awaited_once()
+    await_args = notify.await_args
+    assert await_args is not None
+    event = await_args.args[0]
+    assert event.kind == "tombstone_batch"
+    assert [target.platform_entity_id for target in event.targets] == [
+        first["platform_entity_id"],
+        second["platform_entity_id"],
+    ]
+
+
+@pytest.mark.asyncio
+async def test_delete_entities_validates_all_targets_before_deleting() -> None:
+    from agentgraph.graph.delete import delete_entities
+
+    entity = _entity(title="Present")
+    backend = _mock_backend(
+        get_entity_by_id=AsyncMock(side_effect=[entity, None]),
+        delete_entities=AsyncMock(),
+    )
+    set_backend(backend)
+
+    with pytest.raises(ValueError, match="not found"):
+        await delete_entities([entity["id"], str(uuid4())])
+
+    backend.delete_entities.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_delete_route_deletes_entity() -> None:
     from agentgraph.server.graph_api import delete_entity as delete_route
 
@@ -900,6 +949,19 @@ async def test_delete_route_deletes_entity() -> None:
 
     assert result["deleted"] is True
     delete_entity.assert_awaited_once_with("abc123")
+
+
+@pytest.mark.asyncio
+async def test_delete_entities_route_deletes_multiple_entities() -> None:
+    from agentgraph.server.graph_api import delete_entities as delete_route
+
+    result: dict[str, Any] = {"deleted_count": 2, "entities": []}
+    with patch(
+        "agentgraph.graph.delete.delete_entities", new=AsyncMock(return_value=result)
+    ) as delete_entities:
+        assert await delete_route(["first", "second"]) == result
+
+    delete_entities.assert_awaited_once_with(["first", "second"])
 
 
 # ---------------------------------------------------------------------------
@@ -1164,6 +1226,8 @@ async def test_mcp_tool_metadata_guides_agent_workflow() -> None:
     assert tools["search_entities_tool"].annotations.readOnlyHint is True
     assert tools["delete_entity_tool"].annotations is not None
     assert tools["delete_entity_tool"].annotations.destructiveHint is True
+    assert tools["delete_entities_tool"].annotations is not None
+    assert tools["delete_entities_tool"].annotations.destructiveHint is True
     search_output = tools["search_entities_tool"].outputSchema
     assert search_output is not None
     assert search_output["title"] == "ToolData[SearchData]"
@@ -1324,6 +1388,18 @@ async def test_mcp_delete_entity_tool() -> None:
 
     parsed = _mcp_data(result)
     assert parsed["deleted"] is True
+
+
+@pytest.mark.asyncio
+async def test_mcp_delete_entities_tool() -> None:
+    from agentgraph.mcp.server import delete_entities_tool
+
+    fake_result = {"deleted_count": 2, "entities": [{"id": "one"}, {"id": "two"}]}
+    with patch("agentgraph.graph.delete.delete_entities", new=AsyncMock(return_value=fake_result)):
+        result = await delete_entities_tool(["first", "second"])
+
+    parsed = _mcp_data(result)
+    assert parsed == fake_result
 
 
 @pytest.mark.asyncio

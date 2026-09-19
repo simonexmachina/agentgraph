@@ -1077,6 +1077,38 @@ async def delete_entity_tool(entity_id: str) -> Annotated[CallToolResult, ToolDa
         return _failure("delete_failed", str(exc))
 
 
+@mcp.tool(
+    annotations=_tool_annotations(
+        "Delete multiple AgentGraph entities",
+        read_only=False,
+        destructive=True,
+        idempotent=False,
+        open_world=False,
+    )
+)
+async def delete_entities_tool(
+    entity_ids: list[str],
+) -> Annotated[CallToolResult, ToolData[dict[str, Any]]]:
+    """
+    Atomically delete multiple entities from the graph.
+
+    Every target must resolve before any entity is deleted. Targets support entity UUIDs,
+    UUID prefixes, platform refs, and indexed HTTP(S) URLs. Duplicate references to the
+    same entity are deleted once. Connected edges are deleted with their entity.
+
+    Args:
+        entity_ids: One or more entity UUIDs, UUID prefixes, platform references, or URLs.
+
+    Returns:
+        Structured data with the deleted count and compact deleted entity references.
+    """
+    try:
+        result = await _with_client(lambda client: client.delete_many(entity_ids))
+        return _success(result)
+    except ValueError as exc:
+        return _failure("delete_failed", str(exc))
+
+
 # ---------------------------------------------------------------------------
 # unify_persons — manually merge duplicate Person entities
 # ---------------------------------------------------------------------------

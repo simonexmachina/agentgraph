@@ -462,6 +462,42 @@ async def test_sqlite_delete_entity_removes_entity_edges_and_fts(
     assert fts_count == 0
 
 
+async def test_sqlite_delete_entities_is_atomic_and_preserves_bookmarked_children(
+    sqlite_backend: SQLiteBackend,
+) -> None:
+    conn = sqlite_backend._conn_or_raise()
+    await conn.executemany(
+        """
+        INSERT INTO entities (
+            id, entity_type, platform, platform_entity_id, title, bookmarked, retention_parent_id
+        ) VALUES (?, 'Document', 'rss', ?, ?, ?, ?)
+        """,
+        [
+            ["parent", "feed", "Feed", 0, None],
+            ["other", "other", "Other", 0, None],
+            ["bookmarked", "saved", "Saved", 1, "parent"],
+        ],
+    )
+    await conn.executemany(
+        "INSERT INTO entities_fts (id, title, content) VALUES (?, ?, ?)",
+        [["parent", "Feed", "feed content"], ["other", "Other", "other content"]],
+    )
+
+    with pytest.raises(ValueError, match="not found"):
+        await sqlite_backend.delete_entities(["parent", "missing"])
+
+    assert await sqlite_backend.get_entity_by_id("parent") is not None
+    assert await sqlite_backend._fetchval("SELECT count(*) FROM entities_fts WHERE id = ?", ["parent"]) == 1
+
+    deleted = await sqlite_backend.delete_entities(["parent", "other"])
+
+    assert [entity["id"] for entity in deleted] == ["parent", "other"]
+    saved = await sqlite_backend.get_entity_by_id("bookmarked")
+    assert saved is not None
+    assert saved["retention_parent_id"] is None
+    assert await sqlite_backend._fetchval("SELECT count(*) FROM entities_fts") == 0
+
+
 async def test_sqlite_migration_adds_bookmarked_before_index(tmp_path: Path) -> None:
     db_path = tmp_path / "legacy.db"
     conn = sqlite3.connect(db_path)

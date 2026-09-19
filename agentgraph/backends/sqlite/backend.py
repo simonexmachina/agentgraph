@@ -1228,40 +1228,55 @@ class SQLiteBackend(StorageBackend):
 
     async def delete_entity(self, entity_id: str) -> EntityResult:
         """Delete one entity by internal ID. Edges cascade; FTS rows are removed explicitly."""
+        deleted = await self.delete_entities([entity_id])
+        return deleted[0]
+
+    async def delete_entities(self, entity_ids: list[str]) -> list[EntityResult]:
+        """Atomically delete entities, their edges, and their FTS rows."""
+        unique_ids = list(dict.fromkeys(entity_ids))
+        if not unique_ids:
+            raise ValueError("At least one entity ID is required")
         assert self._write_lock is not None
         async with self._write_lock:
             conn = self._conn_or_raise()
             await conn.execute("BEGIN IMMEDIATE")
             try:
-                await conn.execute(
-                    """
-                    UPDATE entities
-                    SET retention_parent_id = NULL, updated_at = ?
-                    WHERE retention_parent_id = ? AND bookmarked = 1
-                    """,
-                    [_now(), entity_id],
-                )
-                cursor = await conn.execute(
-                    """
-                    DELETE FROM entities
-                    WHERE id = ?
-                    RETURNING id, entity_type, platform, platform_entity_id,
-                              title, content, metadata, created_at, updated_at,
-                              source_created_at, source_updated_at, synced_at, observed_at,
-                              retention_policy, retention_parent_id,
-                              cumulative_observation_duration_ms, bookmarked
-                    """,
-                    [entity_id],
-                )
-                row = await cursor.fetchone()
-                if row is None:
-                    raise ValueError(f"Entity {entity_id!r} not found")
-                await conn.execute("DELETE FROM entities_fts WHERE id = ?", [entity_id])
+                rows: list[aiosqlite.Row] = []
+                for start in range(0, len(unique_ids), _FTS_DELETE_CHUNK_SIZE):
+                    ids = unique_ids[start : start + _FTS_DELETE_CHUNK_SIZE]
+                    placeholders = ",".join("?" * len(ids))
+                    await conn.execute(
+                        f"""
+                        UPDATE entities
+                        SET retention_parent_id = NULL, updated_at = ?
+                        WHERE retention_parent_id IN ({placeholders}) AND bookmarked = 1
+                        """,
+                        [_now(), *ids],
+                    )
+                    cursor = await conn.execute(
+                        f"""
+                        DELETE FROM entities
+                        WHERE id IN ({placeholders})
+                        RETURNING id, entity_type, platform, platform_entity_id,
+                                  title, content, metadata, created_at, updated_at,
+                                  source_created_at, source_updated_at, synced_at, observed_at,
+                                  retention_policy, retention_parent_id,
+                                  cumulative_observation_duration_ms, bookmarked
+                        """,
+                        ids,
+                    )
+                    rows.extend(await cursor.fetchall())
+                    await conn.execute(
+                        f"DELETE FROM entities_fts WHERE id IN ({placeholders})", ids
+                    )
+                if len(rows) != len(unique_ids):
+                    raise ValueError("One or more entities were not found")
                 await conn.execute("COMMIT")
             except Exception:
                 await conn.execute("ROLLBACK")
                 raise
-        return _row_to_entity(row)
+        deleted_by_id = {str(row["id"]): _row_to_entity(row) for row in rows}
+        return [deleted_by_id[entity_id] for entity_id in unique_ids]
 
     # --- Read: entities ---
 
