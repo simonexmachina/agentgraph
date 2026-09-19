@@ -74,8 +74,38 @@ jobs:
           path: dist/${{ needs.resolve.outputs.package }}/
           retention-days: 1
 
-  publish-server:
+  server-release-smoke:
     needs: [resolve, build]
+    if: needs.resolve.outputs.package == 'agentgraph-server'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.tag }}
+
+      - name: Download distribution
+        uses: actions/download-artifact@v4
+        with:
+          name: python-distribution-agentgraph-server
+          path: dist/agentgraph-server/
+
+      - name: Run installed-package smoke test
+        run: |
+          mkdir -p release-smoke-artifacts
+          wheel="$(find dist/agentgraph-server -maxdepth 1 -name '*.whl' -print -quit)"
+          test -n "$wheel"
+          scripts/test_release_container.sh "$wheel" release-smoke-artifacts
+
+      - name: Upload smoke-test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentgraph-server-release-smoke-${{ github.run_id }}
+          path: release-smoke-artifacts/
+          if-no-files-found: ignore
+
+  publish-server:
+    needs: [resolve, build, server-release-smoke]
     if: needs.resolve.outputs.package == 'agentgraph-server'
     runs-on: ubuntu-latest
     permissions:

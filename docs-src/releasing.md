@@ -30,6 +30,21 @@ uv run pyright
 uv run ruff check agentgraph/ packages/ scripts/ tests/
 ```
 
+Server releases also run an installed-package smoke test before publication. The
+workflow builds the exact wheel from the release tag, installs it in a fresh
+Playwright container, adds the Atlas demo data, and verifies the CLI, viewer,
+MCP stdio server, and bundled skills. A failure blocks the PyPI publish job.
+
+To run the same check locally after building a server wheel:
+
+```bash
+scripts/test_release_container.sh /path/to/agentgraph_server-*.whl /tmp/agentgraph-release-smoke
+```
+
+The container uses BM25-only search so the check does not download an embedding
+model. Failed workflow runs upload the server log, MCP stderr, and viewer
+screenshot to the run's artifacts.
+
 Commit and push the version change on `main`. Create an annotated tag whose
 package name and version match the package metadata exactly:
 
