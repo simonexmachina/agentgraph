@@ -2151,7 +2151,7 @@
   // ── Detail panel ──────────────────────────────────────────────────────────
   function setShortcutHelpMode(active) {
     shortcutHelpBtn.setAttribute('aria-pressed', String(active));
-    shortcutHelpBtn.style.borderColor = active ? 'var(--accent)' : '';
+    shortcutHelpBtn.style.borderColor = active ? '#e8a045' : '';
     detailEntityActions.hidden = active;
     detailClose.title = active ? 'Close keyboard shortcuts' : 'Close';
     detailClose.setAttribute('aria-label', active ? 'Close keyboard shortcuts' : 'Close');
