@@ -1,10 +1,10 @@
 [project]
 name = "agentgraph-connector-google"
-version = "0.6.0"
+version = "0.6.1"
 description = "Google Docs, Sheets, Gmail, and Drive connectors for AgentGraph"
 requires-python = ">=3.12"
 dependencies = [
-    "agentgraph-server>=0.8.0,<0.9",
+    "agentgraph-server>=0.9.0,<1.0",
     "google-api-python-client>=2.193.0",
     "google-auth>=2.49.1",
     "google-auth-oauthlib>=1.3.0",

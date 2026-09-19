@@ -69,7 +69,7 @@ def test_version() -> None:
     result = runner.invoke(app, ["--version"])
 
     assert result.exit_code == 0
-    assert result.output == "agentgraph 0.8.0\n"
+    assert result.output == "agentgraph 0.9.0\n"
 
 
 def _serve_settings(uds_path: Path | None) -> SimpleNamespace:

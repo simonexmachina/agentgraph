@@ -43,13 +43,13 @@ def test_release_projects_use_public_names() -> None:
 def test_connectors_declare_server_compatibility() -> None:
     for path in sorted((ROOT / "packages").glob("*/pyproject.toml")):
         project = _project(path)
-        assert "agentgraph-server>=0.8.0,<0.9" in project["dependencies"]
+        assert "agentgraph-server>=0.9.0,<1.0" in project["dependencies"]
 
 
 def test_rss_connector_declares_web_connector_compatibility() -> None:
     rss_project = _project(ROOT / "packages" / "agentgraph-connector-rss" / "pyproject.toml")
 
-    assert "agentgraph-connector-web>=0.6.0,<0.7" in rss_project["dependencies"]
+    assert "agentgraph-connector-web>=0.7.0,<0.8" in rss_project["dependencies"]
 
 
 def test_release_tag_resolves_each_workspace_project() -> None:
