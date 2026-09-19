@@ -555,6 +555,8 @@ def test_shortcut_help_button_toggles_the_right_pane(page: Page) -> None:
         expect(page.locator("#detail")).to_have_class("open")
         expect(page.locator("#detail-title")).to_have_text("Keyboard shortcuts")
         expect(page.locator("#shortcut-body")).to_be_visible()
+        for shortcut in ["Next entity", "Previous entity", "Focus search", "Show or hide entity details"]:
+            expect(page.locator("#shortcut-body")).to_contain_text(shortcut)
 
         help_button.click()
         expect(help_button).to_have_attribute("aria-pressed", "false")

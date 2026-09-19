@@ -82,9 +82,9 @@
   }
 
   #shortcut-help-btn[aria-pressed="true"] {
-    background: var(--accent);
+    background: var(--surface2);
     border-color: var(--accent);
-    color: var(--bg);
+    color: var(--accent);
   }
 
   #sidebar-form {
@@ -2161,6 +2161,7 @@
     detailRequestId += 1;
     detailTitle.textContent = 'Keyboard shortcuts';
     setShortcutHelpMode(true);
+    detail.scrollTop = 0;
     app.classList.add('detail-open');
     detail.classList.add('open');
     window.setTimeout(() => cy.resize(), 200);
