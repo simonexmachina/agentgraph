@@ -437,6 +437,13 @@ def connector_command(
     try:
         result = type(connector).run_cli_command(command_args)
         effects = type(connector).command_effects(command_args, result)
+        if effects.reset_cursors:
+            from agentgraph.cli_query import run_graph_operation
+            from agentgraph.connectors.command_effects import execute_cursor_resets
+
+            result["reset_cursors"] = run_graph_operation(
+                lambda: execute_cursor_resets(effects)
+            )
         if effects.delete_entities:
             from agentgraph.cli_query import run_graph_operation
             from agentgraph.connectors.command_effects import execute_deletions

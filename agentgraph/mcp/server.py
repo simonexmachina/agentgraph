@@ -463,6 +463,11 @@ async def run_connector_command_tool(
     try:
         result = type(connector).run_cli_command(args)
         effects = type(connector).command_effects(args, result)
+        if effects.reset_cursors:
+            from agentgraph.connectors.command_effects import execute_cursor_resets
+
+            await _ensure_backend()
+            result["reset_cursors"] = await execute_cursor_resets(effects)
         if effects.delete_entities:
             from agentgraph.connectors.command_effects import execute_deletions
 

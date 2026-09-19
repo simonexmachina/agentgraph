@@ -248,6 +248,11 @@ class StorageBackend(ABC):
     @abstractmethod
     async def save_cursor(self, source: str, cursor: dict[str, Any]) -> None: ...
 
+    @abstractmethod
+    async def clear_cursor(self, source: str) -> None:
+        """Remove a source cursor so its next poll starts from an empty state."""
+        ...
+
     # --- Connector support ---
 
     @abstractmethod
@@ -297,6 +302,13 @@ class StorageBackend(ABC):
             platform: await self.get_platform_last_synced_at(platform)
             for platform in platforms
         }
+
+    @abstractmethod
+    async def get_sources_last_synced_at(
+        self, sources: list[str]
+    ) -> dict[str, datetime | None]:
+        """Return the latest successful poll timestamp for each connector source."""
+        ...
 
     @abstractmethod
     async def reset_synced_at(

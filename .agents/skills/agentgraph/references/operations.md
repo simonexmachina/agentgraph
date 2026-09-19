@@ -16,6 +16,11 @@ receive the full installed entity type catalog in the `search_entities_tool`
 description during tool discovery. Use `--verify` only when a live provider check is
 needed.
 
+Connector `last_synced_at` values come from successful poll timestamps in `sync_state`,
+aggregated across account-scoped cursors. A connector command may reset its own cursor
+through the generic command-effects path; after a reset, its status is `never` until the
+next successful poll.
+
 MCP equivalents are `list_connectors_tool`, `list_auth_providers_tool`,
 `authenticate_provider_tool`, and `remove_auth_provider_tool`.
 

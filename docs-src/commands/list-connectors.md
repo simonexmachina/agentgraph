@@ -76,3 +76,8 @@ declaration's shared `name`, connector-local `resource_type`, and `description` 
 
 Use `--verify` only when credential validity is uncertain; it performs live provider
 API checks before reporting connector status.
+
+`Last synced` is the timestamp of the connector's most recent successful poll, including
+polls that returned no events. Connectors with account-scoped cursors report the latest
+successful poll across their accounts; a connector whose cursor was reset reports `never`
+until its next successful poll.

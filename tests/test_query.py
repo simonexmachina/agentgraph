@@ -101,6 +101,7 @@ def _mock_backend(**method_overrides: Any) -> Any:
         "list_entities": AsyncMock(return_value=[]),
         "get_platform_last_synced_at": AsyncMock(return_value=None),
         "get_platforms_last_synced_at": AsyncMock(return_value={}),
+        "get_sources_last_synced_at": AsyncMock(return_value={}),
         "set_entity_bookmarked": AsyncMock(return_value=_entity(title="Bookmarked Doc")),
         "delete_entity": AsyncMock(return_value=_entity(title="Deleted Doc")),
         "delete_entities": AsyncMock(return_value=[]),
@@ -1634,6 +1635,40 @@ async def test_mcp_connector_command_executes_requested_entity_deletion() -> Non
 
     assert _mcp_data(result)["result"]["deleted_entities"] == deleted
     execute_deletions.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_mcp_connector_command_executes_requested_cursor_reset() -> None:
+    from agentgraph.mcp.server import run_connector_command_tool
+
+    class Connector:
+        source = "rss"
+
+        @classmethod
+        def run_cli_command(cls, args: list[str]) -> dict[str, Any]:
+            return {"status": "ok", "args": args}
+
+        @classmethod
+        def command_effects(
+            cls,
+            args: list[str],
+            result: dict[str, Any],
+        ) -> ConnectorCommandEffects:
+            _ = (args, result)
+            return ConnectorCommandEffects(reset_cursors=("rss",))
+
+    with (
+        patch("agentgraph.connectors.registry.bootstrap"),
+        patch("agentgraph.connectors.registry.get_connector", return_value=Connector()),
+        patch(
+            "agentgraph.connectors.command_effects.execute_cursor_resets",
+            new=AsyncMock(return_value=["rss"]),
+        ) as execute_cursor_resets,
+    ):
+        result = await run_connector_command_tool("rss", ["enable"])
+
+    assert _mcp_data(result)["result"]["reset_cursors"] == ["rss"]
+    execute_cursor_resets.assert_awaited_once()
 
 
 @pytest.mark.asyncio

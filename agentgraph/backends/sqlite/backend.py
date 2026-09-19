@@ -2037,6 +2037,9 @@ class SQLiteBackend(StorageBackend):
             [source, json.dumps(cursor), _now()],
         )
 
+    async def clear_cursor(self, source: str) -> None:
+        await self._execute("DELETE FROM sync_state WHERE source = ?", [source])
+
     # --- Connector support ---
 
     async def increment_observation_duration(
@@ -2172,6 +2175,26 @@ class SQLiteBackend(StorageBackend):
         for row in rows:
             val = row["last_synced_at"]
             result[row["platform"]] = datetime.fromisoformat(val) if val else None
+        return result
+
+    async def get_sources_last_synced_at(
+        self, sources: list[str]
+    ) -> dict[str, datetime | None]:
+        if not sources:
+            return {}
+        rows = await self._fetchall(
+            "SELECT source, updated_at FROM sync_state"
+        )
+        result: dict[str, datetime | None] = dict.fromkeys(sources, None)
+        for source in sources:
+            matching = [
+                row["updated_at"]
+                for row in rows
+                if row["source"] == source or row["source"].startswith(f"{source}:")
+            ]
+            values = [datetime.fromisoformat(value) for value in matching if value]
+            if values:
+                result[source] = max(values)
         return result
 
     async def reset_synced_at(self, platform: str, platform_entity_id: str) -> None:

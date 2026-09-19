@@ -39,6 +39,16 @@ async def execute_deletions(effects: ConnectorCommandEffects) -> list[dict[str, 
     return deleted
 
 
+async def execute_cursor_resets(effects: ConnectorCommandEffects) -> list[str]:
+    """Clear connector-requested cursors and return the sources that were reset."""
+    from agentgraph.core.context import get_backend
+
+    backend = get_backend()
+    for source in effects.reset_cursors:
+        await backend.clear_cursor(source)
+    return list(effects.reset_cursors)
+
+
 async def execute_fetches(effects: ConnectorCommandEffects) -> list[dict[str, Any]]:
     """Fetch connector-owned references and persist their returned batches."""
     from agentgraph.connectors.registry import get_connector

@@ -174,7 +174,7 @@ async def connector_status_items(
         for delegated_source in type(connector).poll_delegates:
             poll_delegators.setdefault(delegated_source, []).append(connector.source)
 
-    last_synced_by_platform = await backend.get_platforms_last_synced_at(
+    last_synced_by_platform = await backend.get_sources_last_synced_at(
         [connector.source for connector in connectors]
     )
 

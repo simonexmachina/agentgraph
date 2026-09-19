@@ -50,6 +50,7 @@ def test_cli_and_mcp_discover_builtin_resource_types(
     register(connector)
     backend = MagicMock(spec=StorageBackend)
     backend.get_platforms_last_synced_at = AsyncMock(return_value={})
+    backend.get_sources_last_synced_at = AsyncMock(return_value={})
 
     @asynccontextmanager
     async def backend_context() -> AsyncIterator[StorageBackend]:

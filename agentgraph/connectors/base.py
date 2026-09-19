@@ -105,6 +105,7 @@ class ConnectorCommandEffects:
     ingest_account_id: str | None = None
     delete_entities: tuple[EntityReference, ...] = ()
     fetch_references: tuple[SourceReference, ...] = ()
+    reset_cursors: tuple[str, ...] = ()
 
 
 class PersonRecord(BaseModel):

@@ -1041,8 +1041,12 @@ async def _fake_backend_context() -> AsyncGenerator[Any, None]:
     async def _get_platforms_last_synced_at(platforms: list[str]) -> dict[str, datetime | None]:
         return {platform: await _get_platform_last_synced_at(platform) for platform in platforms}
 
+    async def _get_sources_last_synced_at(sources: list[str]) -> dict[str, datetime | None]:
+        return {source: await _get_platform_last_synced_at(source) for source in sources}
+
     backend.get_platform_last_synced_at = AsyncMock(side_effect=_get_platform_last_synced_at)
     backend.get_platforms_last_synced_at = AsyncMock(side_effect=_get_platforms_last_synced_at)
+    backend.get_sources_last_synced_at = AsyncMock(side_effect=_get_sources_last_synced_at)
     yield backend
 
 
@@ -1474,6 +1478,36 @@ def test_connector_command_executes_requested_entity_deletion() -> None:
 
     assert result.exit_code == 0
     assert json.loads(result.output)["deleted_entities"] == deleted
+    run_operation.assert_called_once()
+
+
+def test_connector_command_executes_requested_cursor_reset() -> None:
+    class _ResettingRssConnector(_FakeRssConnector):
+        @classmethod
+        def run_cli_command(cls, args: list[str]) -> dict[str, Any]:
+            return {"status": "ok", "args": args}
+
+        @classmethod
+        def command_effects(
+            cls,
+            args: list[str],
+            result: dict[str, Any],
+        ) -> ConnectorCommandEffects:
+            _ = (args, result)
+            return ConnectorCommandEffects(reset_cursors=("rss",))
+
+    with (
+        patch("agentgraph.connectors.registry.bootstrap"),
+        patch(
+            "agentgraph.connectors.registry.get_connector",
+            return_value=_ResettingRssConnector(),
+        ),
+        patch("agentgraph.cli_query.run_graph_operation", return_value=["rss"]) as run_operation,
+    ):
+        result = runner.invoke(app, ["connector", "rss", "enable", "--json"])
+
+    assert result.exit_code == 0
+    assert json.loads(result.output)["reset_cursors"] == ["rss"]
     run_operation.assert_called_once()
 
 

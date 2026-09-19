@@ -330,6 +330,22 @@ async def test_get_platforms_last_synced_at_groups_platforms(sqlite_backend: SQL
     assert result["slack"] is None
 
 
+async def test_get_sources_last_synced_at_uses_sync_state(sqlite_backend: SQLiteBackend) -> None:
+    await sqlite_backend.save_cursor("feed", {"last_event_id": 12})
+    await sqlite_backend.save_cursor("gmail:account-a", {"cursor": "a"})
+    await sqlite_backend.save_cursor("gmail:account-b", {"cursor": "b"})
+
+    result = await sqlite_backend.get_sources_last_synced_at(["feed", "gmail", "slack"])
+
+    assert result["feed"] is not None
+    assert result["gmail"] is not None
+    assert result["slack"] is None
+
+    await sqlite_backend.clear_cursor("feed")
+    assert await sqlite_backend.load_cursor("feed") == {}
+    assert (await sqlite_backend.get_sources_last_synced_at(["feed"]))["feed"] is None
+
+
 async def test_schema_has_platform_synced_at_index(sqlite_backend: SQLiteBackend) -> None:
     rows = await sqlite_backend._fetchall(
         """
