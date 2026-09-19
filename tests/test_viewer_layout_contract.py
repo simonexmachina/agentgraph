@@ -562,6 +562,29 @@ def test_shortcut_help_button_toggles_the_right_pane(page: Page) -> None:
         expect(page.locator("#shortcut-body")).to_be_hidden()
 
 
+def test_shortcut_help_button_is_positioned_inside_the_sidebar(page: Page) -> None:
+    nodes = [_node(1, "Sidebar entity")]
+    with _serve_viewer(nodes, []) as url:
+        _wait_for_graph(page, url, len(nodes))
+        bounds = page.evaluate(
+            """() => {
+              const sidebar = document.querySelector('#sidebar').getBoundingClientRect();
+              const footer = document.querySelector('#sidebar-footer').getBoundingClientRect();
+              const button = document.querySelector('#shortcut-help-btn').getBoundingClientRect();
+              return {
+                sidebar: { left: sidebar.left, right: sidebar.right, bottom: sidebar.bottom },
+                footer: { left: footer.left, right: footer.right, bottom: footer.bottom },
+                button: { left: button.left, right: button.right, bottom: button.bottom },
+              };
+            }"""
+        )
+
+        assert bounds["button"]["left"] >= bounds["sidebar"]["left"]
+        assert bounds["button"]["right"] <= bounds["sidebar"]["right"]
+        assert bounds["button"]["right"] == bounds["footer"]["right"]
+        assert bounds["button"]["bottom"] == bounds["footer"]["bottom"]
+
+
 def test_i_toggles_selected_node_detail_without_intercepting_text_input(page: Page) -> None:
     nodes = [_node(1, "Keyboard detail"), _node(2, "Other node")]
     with _serve_viewer(nodes, []) as url:

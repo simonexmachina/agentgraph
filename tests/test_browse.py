@@ -412,6 +412,7 @@ def test_viewer_supports_list_navigation_and_shortcut_help() -> None:
     viewer_html = Path("agentgraph/server/static/viewer.html").read_text()
 
     assert 'id="shortcut-help-btn"' in viewer_html
+    assert '<div id="sidebar-footer">' in viewer_html
     assert 'aria-label="Keyboard shortcuts"' in viewer_html
     assert 'id="shortcut-body" hidden' in viewer_html
     assert '<kbd>j</kbd>' in viewer_html
