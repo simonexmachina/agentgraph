@@ -21,7 +21,6 @@ from agentgraph.connectors.base import (
     BaseConnector,
     ConnectorCommandEffects,
     EntityBatch,
-    EntityMetadataPatch,
     EntityRecord,
     EntityTypeDefinition,
     FetchPolicy,
@@ -29,13 +28,12 @@ from agentgraph.connectors.base import (
     SourceReference,
 )
 from agentgraph.connectors.match_patterns import matches_pattern
-from agentgraph.core.context import get_backend
 from agentgraph_connector_web.config import (
     load_web_settings,
     observe_urls,
     remove_observed_urls,
 )
-from agentgraph_connector_web.http import HttpFetchResult, fetch_http_resource
+from agentgraph_connector_web.http import fetch_http_resource
 
 _STALE_AFTER = 24 * 60 * 60
 _MAX_BYTES = 2_000_000
@@ -188,14 +186,10 @@ class WebConnector(BaseConnector):
         if ref is None:
             raise ValueError("Web connector only supports http:// and https:// URLs")
 
-        existing = await _find_existing_web_entity(ref.resource_id)
         result = await _fetch_web_entity(
             ref.resource_id,
-            existing_entity=existing,
             compact_html=(meta or {}).get("compact_html") == "true",
         )
-        if isinstance(result, EntityMetadataPatch):
-            return EntityBatch(metadata_patches=[result])
         return EntityBatch(entities=[result])
 
     def entity_url(self, platform_entity_id: str) -> str | None:
@@ -221,18 +215,14 @@ async def _fetch_web_entity(
     url: str,
     *,
     client: httpx.AsyncClient | None = None,
-    existing_entity: dict[str, object] | None = None,
     compact_html: bool = False,
-) -> EntityRecord | EntityMetadataPatch:
-    existing_metadata = _entity_metadata(existing_entity)
-    headers = {
-        "Accept": _ACCEPT,
-        "User-Agent": "AgentGraph/0.1",
-        **_conditional_request_headers(existing_metadata),
-    }
+) -> EntityRecord:
     response = await fetch_http_resource(
         url,
-        headers=headers,
+        headers={
+            "Accept": _ACCEPT,
+            "User-Agent": "AgentGraph/0.1",
+        },
         max_bytes=_MAX_BYTES,
         too_large_message=f"{_RESPONSE_TOO_LARGE_PREFIX}: limit is {_MAX_BYTES} bytes",
         timeout=httpx.Timeout(10.0, connect=5.0),
@@ -241,9 +231,7 @@ async def _fetch_web_entity(
         compact_html=compact_html,
     )
     if response.status_code == 304:
-        if existing_entity is None:
-            raise ValueError(f"Received 304 for {url} without an existing Document")
-        return _not_modified_entity(url, response, existing_entity)
+        raise ValueError(f"Received unexpected 304 response for {url}")
 
     content_type = _normalise_content_type(response.headers.get("content-type", ""))
     final_url = _canonical_url(response.url)
@@ -267,33 +255,14 @@ async def _fetch_web_entity(
             **_response_cache_metadata(response.headers),
         },
     )
-    if _same_web_document(existing_entity, entity):
-        return EntityMetadataPatch(
-            platform="web",
-            platform_entity_id=entity.platform_entity_id,
-            metadata=dict(entity.metadata),
-        )
     return entity
 
 
 async def fetch_http_document(
     url: str,
-    *,
-    existing_entity: dict[str, object] | None = None,
-) -> EntityRecord | EntityMetadataPatch:
-    """Fetch an HTTP-backed Document, using validators from existing metadata when present."""
-    return await _fetch_web_entity(url, existing_entity=existing_entity)
-
-
-def _conditional_request_headers(metadata: dict[str, object]) -> dict[str, str]:
-    headers: dict[str, str] = {}
-    etag = metadata.get("http_etag")
-    if isinstance(etag, str) and etag:
-        headers["If-None-Match"] = etag
-    last_modified = metadata.get("http_last_modified")
-    if isinstance(last_modified, str) and last_modified:
-        headers["If-Modified-Since"] = last_modified
-    return headers
+) -> EntityRecord:
+    """Fetch an HTTP-backed Document without reading stored entity state."""
+    return await _fetch_web_entity(url)
 
 
 def _response_cache_metadata(headers: Mapping[str, str]) -> dict[str, str]:
@@ -315,59 +284,6 @@ def _parse_http_date(value: str | None) -> datetime | None:
     except (TypeError, ValueError, OverflowError):
         return None
     return parsed.astimezone(UTC) if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
-
-
-def _entity_metadata(entity: dict[str, object] | None) -> dict[str, object]:
-    metadata = entity.get("metadata") if entity is not None else None
-    return cast(dict[str, object], metadata) if isinstance(metadata, dict) else {}
-
-
-def _not_modified_entity(
-    url: str,
-    response: HttpFetchResult,
-    existing_entity: dict[str, object],
-) -> EntityMetadataPatch:
-    metadata: dict[str, str | int | float | bool | None] = {
-        "url": url,
-        "final_url": str(existing_entity.get("platform_entity_id") or url),
-        "web_url": str(existing_entity.get("platform_entity_id") or url),
-        "status_code": response.status_code,
-        "fetched_at": datetime.now(UTC).isoformat(),
-        **_response_cache_metadata(response.headers),
-    }
-    return EntityMetadataPatch(
-        platform="web",
-        platform_entity_id=str(existing_entity.get("platform_entity_id") or url),
-        metadata=metadata,
-    )
-
-
-def _same_web_document(
-    existing_entity: dict[str, object] | None,
-    candidate: EntityRecord,
-) -> bool:
-    return bool(
-        existing_entity is not None
-        and existing_entity.get("platform_entity_id") == candidate.platform_entity_id
-        and existing_entity.get("title") == candidate.title
-        and existing_entity.get("content") == candidate.content
-    )
-
-
-async def _find_existing_web_entity(url: str) -> dict[str, object] | None:
-    backend = get_backend()
-    existing = await backend.get_entity_by_platform("web", url)
-    if existing is not None:
-        return cast(dict[str, object], existing)
-    matches = await backend.query_by_filter(
-        "Document",
-        {"platform": "web", "url": url},
-        1,
-        "updated_at",
-        None,
-        None,
-    )
-    return cast(dict[str, object], matches[0]) if matches else None
 
 
 class _ParsedContent:

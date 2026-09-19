@@ -19,13 +19,13 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 import httpx
 from agentgraph_connector_web import fetch_http_resource
 
+from agentgraph.config import get_settings
 from agentgraph.connectors.base import (
     BaseConnector,
     ConnectorAccount,
     ConnectorCommandEffects,
     EdgeRecord,
     EntityBatch,
-    EntityMetadataPatch,
     EntityRecord,
     EntityReference,
     EntityTypeDefinition,
@@ -268,6 +268,8 @@ class RssConnector(BaseConnector):
                 batch = await _fetch_feed(
                     feed_url,
                     hydrate_documents=not defer_article_hydration_for_legacy_feeds,
+                    skip_existing_articles=True,
+                    omit_outside_retention=True,
                     persist_feed_payload_only=defer_article_hydration_for_legacy_feeds,
                 )
             except Exception as exc:
@@ -318,12 +320,9 @@ class RssConnector(BaseConnector):
             return await _fetch_feed(
                 feed_url,
                 hydrate_documents=True,
-                new_documents_only=True,
             )
         if resource_type == "document" and meta and meta.get("web_url"):
             result = await _fetch_entry_document(resource_id, meta)
-            if isinstance(result, EntityMetadataPatch):
-                return EntityBatch(metadata_patches=[result])
             return EntityBatch(entities=[result])
         return EntityBatch()
 
@@ -332,7 +331,8 @@ async def _fetch_feed(
     feed_url: str,
     *,
     hydrate_documents: bool = False,
-    new_documents_only: bool = False,
+    skip_existing_articles: bool = False,
+    omit_outside_retention: bool = False,
     persist_feed_payload_only: bool = False,
 ) -> EntityBatch:
     parsed_result = await _parse_feed(feed_url)
@@ -365,28 +365,34 @@ async def _fetch_feed(
     for author in feed_authors:
         persons.setdefault(author.user_id, author.to_person())
 
+    retention_cutoff = (
+        datetime.now(UTC) - timedelta(days=get_settings().retention_days)
+        if omit_outside_retention
+        else None
+    )
+    eligible_entries: list[tuple[EntityRecord, list[FeedAuthor]]] = []
     for raw_entry in cast(list[Any], parsed.entries):
         entry = cast(dict[str, Any], raw_entry)
+        if _entry_is_outside_retention(entry, retention_cutoff):
+            continue
         # RFC 4287 §4.2.1: feed-level authors apply to entries that declare none.
         authors = _parse_authors(entry) or feed_authors
         entity = _entry_to_entity(feed_url, feed_entity_id, entry, authors)
-        include_entity = True
-        if new_documents_only:
-            existing = await get_backend().get_entity_by_platform(
-                "rss",
-                entity.platform_entity_id,
-            )
-            include_entity = existing is None
-        if include_entity:
-            if hydrate_documents:
-                hydrated = await _hydrate_entry_document(entity)
-                if isinstance(hydrated, EntityMetadataPatch):
-                    batch.metadata_patches.append(hydrated)
-                    include_entity = False
-                else:
-                    entity = hydrated
-            if include_entity:
-                entities.append(entity)
+        eligible_entries.append((entity, authors))
+
+    existing_article_ids: set[str] = set()
+    if skip_existing_articles and eligible_entries:
+        existing_article_ids = await get_backend().get_existing_platform_entity_ids(
+            "rss",
+            [entity.platform_entity_id for entity, _ in eligible_entries],
+        )
+
+    for entity, authors in eligible_entries:
+        if entity.platform_entity_id in existing_article_ids:
+            continue
+        if hydrate_documents:
+            entity = await _hydrate_entry_document(entity)
+        entities.append(entity)
         edges.append(
             EdgeRecord(
                 edge_type="posted_in",
@@ -405,8 +411,7 @@ async def _fetch_feed(
                     platform="rss",
                 )
             )
-        if include_entity:
-            batch.add_stubs_from(entity)
+        batch.add_stubs_from(entity)
 
     edges.extend(
         EdgeRecord(
@@ -647,7 +652,8 @@ def _entry_to_entity(
     entity_id = f"entry/{_hash_ref(feed_url + ':' + external_id)}"
     title = str(entry.get("title") or link or "(untitled)")
     summary = _entry_text(entry)
-    published = _parse_entry_datetime(entry.get("published") or entry.get("updated"))
+    published = _entry_datetime(entry, "published")
+    updated = _entry_datetime(entry, "updated")
     metadata: dict[str, str | int | float | bool | None] = {
         "feed_url": feed_url,
         "feed_entity_id": feed_entity_id,
@@ -667,8 +673,8 @@ def _entry_to_entity(
         platform_entity_id=entity_id,
         title=title,
         content="\n\n".join(content_parts),
-        source_created_at=published,
-        source_updated_at=_parse_entry_datetime(entry.get("updated")),
+        source_created_at=published or updated,
+        source_updated_at=updated,
         metadata=metadata,
     )
 
@@ -678,19 +684,11 @@ async def _fetch_entry_document(
     metadata: Mapping[str, object],
     *,
     fallback: EntityRecord | None = None,
-) -> EntityRecord | EntityMetadataPatch:
+) -> EntityRecord:
     web_url = _metadata_str(metadata, "web_url")
     if web_url is None:
         raise ValueError(f"RSS document {platform_entity_id} has no web_url")
-    existing = await get_backend().get_entity_by_platform("rss", platform_entity_id)
-    http_existing = _http_existing_entity(existing, web_url)
-    fetched = await _fetch_http_document(web_url, existing_entity=http_existing)
-    if isinstance(fetched, EntityMetadataPatch):
-        return EntityMetadataPatch(
-            platform="rss",
-            platform_entity_id=platform_entity_id,
-            metadata=dict(fetched.metadata),
-        )
+    fetched = await _fetch_http_document(web_url)
     fetched_metadata = dict(fetched.metadata)
     rss_metadata: dict[str, str | int | float | bool | None] = {
         **_entity_record_metadata(metadata),
@@ -713,7 +711,7 @@ async def _fetch_entry_document(
 
 async def _hydrate_entry_document(
     entity: EntityRecord,
-) -> EntityRecord | EntityMetadataPatch:
+) -> EntityRecord:
     if _metadata_str(entity.metadata, "web_url") is None:
         return entity
     try:
@@ -733,25 +731,12 @@ async def _hydrate_entry_document(
         return entity
 
 
-def _http_existing_entity(
-    existing: dict[str, Any] | None,
-    web_url: str,
-) -> dict[str, object] | None:
-    if existing is None:
-        return None
-    http_existing = dict(existing)
-    http_existing["platform_entity_id"] = web_url
-    return http_existing
-
-
 async def _fetch_http_document(
     url: str,
-    *,
-    existing_entity: dict[str, object] | None,
-) -> EntityRecord | EntityMetadataPatch:
+) -> EntityRecord:
     module: Any = import_module("agentgraph_connector_web")
-    result = await module.fetch_http_document(url, existing_entity=existing_entity)
-    return cast(EntityRecord | EntityMetadataPatch, result)
+    result = await module.fetch_http_document(url)
+    return cast(EntityRecord, result)
 
 
 def _entity_record_metadata(
@@ -847,14 +832,58 @@ def _entry_text(entry: dict[str, Any]) -> str:
     return str(entry.get("summary") or entry.get("description") or "")
 
 
+def _entry_is_outside_retention(
+    entry: Mapping[str, object],
+    retention_cutoff: datetime | None,
+) -> bool:
+    if retention_cutoff is None:
+        return False
+    last_changed = _entry_last_changed_at(entry)
+    return last_changed is not None and last_changed < retention_cutoff
+
+
+def _entry_last_changed_at(entry: Mapping[str, object]) -> datetime | None:
+    timestamps = [
+        timestamp
+        for timestamp in (_entry_datetime(entry, "published"), _entry_datetime(entry, "updated"))
+        if timestamp is not None
+    ]
+    return max(timestamps) if timestamps else None
+
+
+def _entry_datetime(entry: Mapping[str, object], field: str) -> datetime | None:
+    return _parse_entry_datetime(entry.get(f"{field}_parsed")) or _parse_entry_datetime(
+        entry.get(field)
+    )
+
+
 def _parse_entry_datetime(value: object) -> datetime | None:
+    if isinstance(value, tuple) and len(value) >= 6:
+        parts = value[:6]
+        if all(isinstance(part, int) for part in parts):
+            try:
+                return datetime(
+                    cast(int, parts[0]),
+                    cast(int, parts[1]),
+                    cast(int, parts[2]),
+                    cast(int, parts[3]),
+                    cast(int, parts[4]),
+                    cast(int, parts[5]),
+                    tzinfo=UTC,
+                )
+            except ValueError:
+                return None
     if not isinstance(value, str) or not value:
         return None
     try:
         dt = parsedate_to_datetime(value)
-        return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+        return dt.astimezone(UTC) if dt.tzinfo else dt.replace(tzinfo=UTC)
     except Exception:
-        return None
+        try:
+            dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return dt.astimezone(UTC) if dt.tzinfo else dt.replace(tzinfo=UTC)
+        except ValueError:
+            return None
 
 
 def _feed_id(feed_url: str) -> str:

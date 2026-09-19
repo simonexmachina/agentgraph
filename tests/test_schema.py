@@ -41,6 +41,41 @@ async def test_tables_exist(sqlite_backend: SQLiteBackend) -> None:
     assert "observed_at" in {row["name"] for row in columns}
 
 
+async def test_get_existing_platform_entity_ids_returns_only_matching_ids(
+    sqlite_backend: SQLiteBackend,
+) -> None:
+    await sqlite_backend.upsert_batch(
+        EntityBatch(
+            entities=[
+                EntityRecord(
+                    entity_type="Document",
+                    platform="rss",
+                    platform_entity_id="entry/known",
+                    title="Known",
+                    content="Known entry",
+                ),
+                EntityRecord(
+                    entity_type="Document",
+                    platform="web",
+                    platform_entity_id="https://example.com/known",
+                    title="Other platform",
+                    content="Known elsewhere",
+                ),
+            ]
+        ),
+        {},
+        {},
+    )
+
+    existing = await sqlite_backend.get_existing_platform_entity_ids(
+        "rss",
+        ["entry/known", "entry/missing", "entry/known"],
+    )
+
+    assert existing == {"entry/known"}
+    assert await sqlite_backend.get_existing_platform_entity_ids("rss", []) == set()
+
+
 async def test_version_four_migration_replaces_rss_metadata_index(tmp_path: Path) -> None:
     db_path = tmp_path / "v4.db"
     conn = sqlite3.connect(db_path)

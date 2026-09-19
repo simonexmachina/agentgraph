@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 # pyright: reportPrivateUsage=false
-import hashlib
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import agentgraph_connector_web
@@ -18,7 +16,7 @@ from agentgraph_connector_web.http import (
     fetch_http_resource,
 )
 
-from agentgraph.connectors.base import EntityMetadataPatch, EntityRecord, SourceReference
+from agentgraph.connectors.base import EntityRecord, SourceReference
 
 
 def test_web_connector_resolves_http_urls() -> None:
@@ -201,17 +199,10 @@ async def test_web_fetch_uses_command_compaction_metadata() -> None:
         platform="web",
         platform_entity_id="https://example.com/page",
     )
-    backend = SimpleNamespace(
-        get_entity_by_platform=AsyncMock(return_value=None),
-        query_by_filter=AsyncMock(return_value=[]),
-    )
-    with (
-        patch("agentgraph_connector_web.get_backend", return_value=backend),
-        patch(
-            "agentgraph_connector_web._fetch_web_entity",
-            new=AsyncMock(return_value=entity),
-        ) as fetch_web_entity,
-    ):
+    with patch(
+        "agentgraph_connector_web._fetch_web_entity",
+        new=AsyncMock(return_value=entity),
+    ) as fetch_web_entity:
         batch = await WebConnector().fetch(
             "document",
             "https://example.com/page",
@@ -220,53 +211,32 @@ async def test_web_fetch_uses_command_compaction_metadata() -> None:
 
     fetch_web_entity.assert_awaited_once_with(
         "https://example.com/page",
-        existing_entity=None,
         compact_html=True,
     )
     assert batch.entities == [entity]
 
 
 @pytest.mark.asyncio
-async def test_web_fetch_resolves_redirected_entity_and_returns_metadata_patch() -> None:
-    existing: dict[str, object] = {
-        "platform_entity_id": "https://example.com/final",
-        "metadata": {"url": "https://example.com/requested"},
-    }
-    result = EntityMetadataPatch(
+async def test_web_fetch_does_not_query_for_an_existing_document() -> None:
+    result = EntityRecord(
+        entity_type="Document",
         platform="web",
         platform_entity_id="https://example.com/final",
-        metadata={"status_code": 304},
     )
-    backend = SimpleNamespace(
-        get_entity_by_platform=AsyncMock(return_value=None),
-        query_by_filter=AsyncMock(return_value=[existing]),
-    )
-    with (
-        patch("agentgraph_connector_web.get_backend", return_value=backend),
-        patch(
-            "agentgraph_connector_web._fetch_web_entity",
-            new=AsyncMock(return_value=result),
-        ) as fetch_web_entity,
-    ):
+    with patch(
+        "agentgraph_connector_web._fetch_web_entity",
+        new=AsyncMock(return_value=result),
+    ) as fetch_web_entity:
         batch = await WebConnector().fetch(
             "document",
             "https://example.com/requested",
         )
 
-    backend.query_by_filter.assert_awaited_once_with(
-        "Document",
-        {"platform": "web", "url": "https://example.com/requested"},
-        1,
-        "updated_at",
-        None,
-        None,
-    )
     fetch_web_entity.assert_awaited_once_with(
         "https://example.com/requested",
-        existing_entity=existing,
         compact_html=False,
     )
-    assert batch.metadata_patches == [result]
+    assert batch.entities == [result]
 
 
 @pytest.mark.asyncio
@@ -358,20 +328,6 @@ def test_parse_unsupported_content_type_raises_clear_error() -> None:
             "application/pdf",
             "https://example.com/file.pdf",
         )
-
-
-def test_conditional_request_headers_use_document_metadata() -> None:
-    headers = agentgraph_connector_web._conditional_request_headers(  # noqa: SLF001
-        {
-            "http_etag": '"abc123"',
-            "http_last_modified": "Mon, 08 Jun 2026 00:00:00 GMT",
-        }
-    )
-
-    assert headers == {
-        "If-None-Match": '"abc123"',
-        "If-Modified-Since": "Mon, 08 Jun 2026 00:00:00 GMT",
-    }
 
 
 @pytest.mark.asyncio
@@ -469,10 +425,12 @@ async def test_fetch_web_entity_streams_response() -> None:
 
 
 @pytest.mark.asyncio
-async def test_fetch_web_entity_returns_metadata_patch_for_unchanged_200_response() -> None:
+async def test_fetch_web_entity_does_not_send_conditional_headers() -> None:
     body = b"<title>Cached title</title><p>Cached body</p>"
 
     def handler(request: httpx.Request) -> httpx.Response:
+        assert "if-none-match" not in request.headers
+        assert "if-modified-since" not in request.headers
         return httpx.Response(
             200,
             headers={"content-type": "text/html", "etag": '"refreshed"'},
@@ -480,37 +438,21 @@ async def test_fetch_web_entity_returns_metadata_patch_for_unchanged_200_respons
             request=request,
         )
 
-    existing: dict[str, object] = {
-        "entity_type": "Document",
-        "platform": "web",
-        "platform_entity_id": "https://example.com/page",
-        "title": "Cached title",
-        "content": body.decode(),
-        "metadata": {
-            "content_sha256": hashlib.sha256(body).hexdigest(),
-            "http_etag": '"cached"',
-        },
-    }
-
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         result = await agentgraph_connector_web._fetch_web_entity(  # noqa: SLF001
             "https://example.com/page",
             client=client,
-            existing_entity=existing,
         )
 
-    assert isinstance(result, EntityMetadataPatch)
+    assert isinstance(result, EntityRecord)
     assert result.platform_entity_id == "https://example.com/page"
     assert result.metadata["status_code"] == 200
     assert result.metadata["http_etag"] == '"refreshed"'
-    assert result.metadata["content_sha256"] == hashlib.sha256(body).hexdigest()
 
 
 @pytest.mark.asyncio
-async def test_fetch_web_entity_uses_document_validators_on_304() -> None:
+async def test_fetch_web_entity_rejects_unexpected_304_response() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.headers["if-none-match"] == '"cached"'
-        assert request.headers["if-modified-since"] == "Sun, 07 Jun 2026 12:00:00 GMT"
         return httpx.Response(
             304,
             headers={
@@ -520,60 +462,12 @@ async def test_fetch_web_entity_uses_document_validators_on_304() -> None:
             request=request,
         )
 
-    existing: dict[str, object] = {
-        "entity_type": "Document",
-        "platform": "web",
-        "platform_entity_id": "https://example.com/page",
-        "title": "Cached title",
-        "content": "Cached body",
-        "metadata": {
-            "web_url": "https://example.com/page",
-            "content_sha256": "cached-hash",
-            "http_etag": '"cached"',
-            "http_last_modified": "Sun, 07 Jun 2026 12:00:00 GMT",
-        },
-    }
-
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-        result = await agentgraph_connector_web._fetch_web_entity(  # noqa: SLF001
-            "https://example.com/page",
-            client=client,
-            existing_entity=existing,
-        )
-
-    assert isinstance(result, EntityMetadataPatch)
-    assert result.platform_entity_id == "https://example.com/page"
-    assert result.metadata["status_code"] == 304
-    assert "content_sha256" not in result.metadata
-    assert result.metadata["http_etag"] == '"cached"'
-
-
-@pytest.mark.asyncio
-async def test_fetch_web_entity_returns_entity_for_changed_200_response() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
-            200,
-            headers={"content-type": "text/html", "etag": '"fresh"'},
-            content=b"<title>Fresh title</title><p>Fresh body</p>",
-            request=request,
-        )
-
-    existing: dict[str, object] = {
-        "platform_entity_id": "https://example.com/page",
-        "title": "Cached title",
-        "content": "Cached body",
-        "metadata": {"http_etag": '"cached"'},
-    }
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-        result = await agentgraph_connector_web._fetch_web_entity(  # noqa: SLF001
-            "https://example.com/page",
-            client=client,
-            existing_entity=existing,
-        )
-
-    assert isinstance(result, EntityRecord)
-    assert result.title == "Fresh title"
-    assert result.metadata["http_etag"] == '"fresh"'
+        with pytest.raises(ValueError, match="unexpected 304"):
+            await agentgraph_connector_web._fetch_web_entity(  # noqa: SLF001
+                "https://example.com/page",
+                client=client,
+            )
 
 
 @pytest.mark.asyncio

@@ -68,6 +68,7 @@ _LIST_PAGE_ORDER_BY = {
 }
 _COLUMN_FILTERS = {"platform", "platform_entity_id", "entity_type"}
 _FTS_DELETE_CHUNK_SIZE = 500
+_PLATFORM_ENTITY_ID_LOOKUP_CHUNK_SIZE = 900
 _BUSY_TIMEOUT_MS = 5_000
 _SCHEMA_VERSION = 6
 
@@ -1255,9 +1256,7 @@ class SQLiteBackend(StorageBackend):
                 row = await cursor.fetchone()
                 if row is None:
                     raise ValueError(f"Entity {entity_id!r} not found")
-                await conn.execute(
-                    "DELETE FROM entities_fts WHERE id NOT IN (SELECT id FROM entities)"
-                )
+                await conn.execute("DELETE FROM entities_fts WHERE id = ?", [entity_id])
                 await conn.execute("COMMIT")
             except Exception:
                 await conn.execute("ROLLBACK")
@@ -1552,6 +1551,30 @@ class SQLiteBackend(StorageBackend):
             [*content_params, platform, platform_entity_id],
         )
         return _row_to_entity(row) if row else None
+
+    async def get_existing_platform_entity_ids(
+        self,
+        platform: str,
+        platform_entity_ids: list[str],
+    ) -> set[str]:
+        if not platform_entity_ids:
+            return set()
+
+        existing: set[str] = set()
+        for offset in range(0, len(platform_entity_ids), _PLATFORM_ENTITY_ID_LOOKUP_CHUNK_SIZE):
+            chunk = platform_entity_ids[
+                offset : offset + _PLATFORM_ENTITY_ID_LOOKUP_CHUNK_SIZE
+            ]
+            placeholders = ",".join("?" for _ in chunk)
+            rows = await self._fetchall(
+                f"""
+                SELECT platform_entity_id FROM entities
+                WHERE platform = ? AND platform_entity_id IN ({placeholders})
+                """,
+                [platform, *chunk],
+            )
+            existing.update(str(row["platform_entity_id"]) for row in rows)
+        return existing
 
     async def list_entities(
         self,

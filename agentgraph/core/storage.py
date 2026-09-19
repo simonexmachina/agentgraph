@@ -128,6 +128,15 @@ class StorageBackend(ABC):
     ) -> EntityResult | None: ...
 
     @abstractmethod
+    async def get_existing_platform_entity_ids(
+        self,
+        platform: str,
+        platform_entity_ids: list[str],
+    ) -> set[str]:
+        """Return the supplied platform entity IDs that are already stored."""
+        ...
+
+    @abstractmethod
     async def list_entities(
         self,
         entity_types: list[str] | None,
