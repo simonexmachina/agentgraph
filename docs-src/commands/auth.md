@@ -36,6 +36,12 @@ agentgraph auth remove PLATFORM [--account ACCOUNT_ID] [--json]
   account with `auth remove`
 - RSS and generic web are not authentication providers; configure RSS with `agentgraph connector rss add`
 
+## Google auth warning
+
+`agentgraph auth google` uses AgentGraph's packaged Desktop OAuth client for Gmail, Google Drive, Google Docs, and Google Sheets. AgentGraph's Google OAuth app is not verified yet, so Google can show an unverified/unsafe app warning during auth. To continue, open the advanced option and explicitly allow access.
+
+See [Google OAuth verification](/google-oauth-verification.html) for the current verification status and maintainer procedure.
+
 ## Examples
 
 ```bash
