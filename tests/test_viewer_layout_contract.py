@@ -550,18 +550,34 @@ def test_shortcut_help_button_toggles_the_right_pane(page: Page) -> None:
         _wait_for_graph(page, url, len(nodes))
         help_button = page.get_by_role("button", name="Keyboard shortcuts", exact=True)
 
+        normal_colors = page.evaluate(
+            """() => {
+              const style = getComputedStyle(document.querySelector('#shortcut-help-btn'));
+              return { color: style.color, border: style.borderColor };
+            }"""
+        )
+
         help_button.click()
         expect(help_button).to_have_attribute("aria-pressed", "true")
         expect(page.locator("#detail")).to_have_class("open")
         expect(page.locator("#detail-title")).to_have_text("Keyboard shortcuts")
-        expect(page.locator("#shortcut-body")).to_be_visible()
+        expect(page.locator("#detail-body")).to_be_visible()
         for shortcut in ["Next entity", "Previous entity", "Focus search", "Show or hide entity details"]:
-            expect(page.locator("#shortcut-body")).to_contain_text(shortcut)
+            expect(page.locator("#detail-body")).to_contain_text(shortcut)
+
+        active_colors = page.evaluate(
+            """() => {
+              const button = document.querySelector('#shortcut-help-btn');
+              const style = getComputedStyle(button);
+              return { color: style.color, border: style.borderColor };
+            }"""
+        )
+        assert active_colors["color"] == normal_colors["color"]
+        assert active_colors["border"] != normal_colors["border"]
 
         help_button.click()
         expect(help_button).to_have_attribute("aria-pressed", "false")
         expect(page.locator("#detail")).not_to_have_class("open")
-        expect(page.locator("#shortcut-body")).to_be_hidden()
 
 
 def test_shortcut_help_button_is_positioned_inside_the_sidebar(page: Page) -> None:

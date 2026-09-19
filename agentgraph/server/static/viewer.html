@@ -81,10 +81,11 @@
     line-height: 1;
   }
 
+  #shortcut-help-btn:hover,
   #shortcut-help-btn[aria-pressed="true"] {
     background: var(--surface2);
     border-color: var(--accent);
-    color: var(--accent);
+    color: var(--text-dim);
   }
 
   #sidebar-form {
@@ -644,12 +645,10 @@
     gap: 12px;
   }
 
-  #shortcut-body {
-    padding: 14px;
-  }
-
-  #shortcut-body[hidden] {
-    display: none;
+  .shortcut-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
   }
 
   .shortcut-intro {
@@ -1113,15 +1112,17 @@
       </div>
     </div>
     <div id="detail-body"></div>
-    <div id="shortcut-body" hidden>
-      <p class="shortcut-intro">Use these keys while browsing the entity list.</p>
-      <dl class="shortcut-list">
-        <div><dt><kbd>j</kbd></dt><dd>Next entity</dd></div>
-        <div><dt><kbd>k</kbd></dt><dd>Previous entity</dd></div>
-        <div><dt><kbd>/</kbd></dt><dd>Focus search</dd></div>
-        <div><dt><kbd>i</kbd></dt><dd>Show or hide entity details</dd></div>
-      </dl>
-    </div>
+    <template id="shortcut-template">
+      <div class="shortcut-content">
+        <p class="shortcut-intro">Use these keys while browsing the entity list.</p>
+        <dl class="shortcut-list">
+          <div><dt><kbd>j</kbd></dt><dd>Next entity</dd></div>
+          <div><dt><kbd>k</kbd></dt><dd>Previous entity</dd></div>
+          <div><dt><kbd>/</kbd></dt><dd>Focus search</dd></div>
+          <div><dt><kbd>i</kbd></dt><dd>Show or hide entity details</dd></div>
+        </dl>
+      </div>
+    </template>
   </div>
 
 </div>
@@ -1496,7 +1497,7 @@
   const detailTitle   = document.getElementById('detail-title');
   const detailBody    = document.getElementById('detail-body');
   const detailEntityActions = document.getElementById('detail-entity-actions');
-  const shortcutBody  = document.getElementById('shortcut-body');
+  const shortcutTemplate = document.getElementById('shortcut-template');
   const shortcutHelpBtn = document.getElementById('shortcut-help-btn');
   const detailFocus   = document.getElementById('detail-focus');
   const detailBookmark = document.getElementById('detail-bookmark');
@@ -2150,8 +2151,6 @@
   // ── Detail panel ──────────────────────────────────────────────────────────
   function setShortcutHelpMode(active) {
     shortcutHelpBtn.setAttribute('aria-pressed', String(active));
-    detailBody.hidden = active;
-    shortcutBody.hidden = !active;
     detailEntityActions.hidden = active;
     detailClose.title = active ? 'Close keyboard shortcuts' : 'Close';
     detailClose.setAttribute('aria-label', active ? 'Close keyboard shortcuts' : 'Close');
@@ -2160,6 +2159,7 @@
   function showShortcutHelp() {
     detailRequestId += 1;
     detailTitle.textContent = 'Keyboard shortcuts';
+    detailBody.replaceChildren(shortcutTemplate.content.cloneNode(true));
     setShortcutHelpMode(true);
     detail.scrollTop = 0;
     app.classList.add('detail-open');

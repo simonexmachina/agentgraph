@@ -414,11 +414,11 @@ def test_viewer_supports_list_navigation_and_shortcut_help() -> None:
     assert 'id="shortcut-help-btn"' in viewer_html
     assert '<div id="sidebar-footer">' in viewer_html
     assert 'aria-label="Keyboard shortcuts"' in viewer_html
-    assert 'id="shortcut-body" hidden' in viewer_html
+    assert 'id="shortcut-template"' in viewer_html
     assert '<kbd>j</kbd>' in viewer_html
     assert '<kbd>k</kbd>' in viewer_html
-    assert 'background: var(--surface2);' in viewer_html
-    assert 'color: var(--accent);' in viewer_html
+    assert '#shortcut-help-btn:hover,' in viewer_html
+    assert 'color: var(--text-dim);' in viewer_html
     assert "function moveListSelection(delta)" in viewer_html
     assert "showEntityDetail(nextId);" in viewer_html
     assert "key === 'j' || key === 'k'" in viewer_html
