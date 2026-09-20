@@ -32,6 +32,9 @@ date; a query ranks them by relevance.
 ## Guardrails
 
 - A stub has neither a title nor content.
+- RSS articles and web documents use final fetched URL identifiers. Use
+  `rss/https://...` or `web/https://...` to select a platform copy; original redirect
+  URLs are not aliases. URL lookup never scans document metadata.
 - Use `source_created_at` and `source_updated_at` for source chronology; local
   `created_at` and `updated_at` describe the graph record.
 - Browser observation alone updates `observed_at`; fetch, poll, and ingest do not

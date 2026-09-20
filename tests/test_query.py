@@ -514,6 +514,12 @@ async def test_get_entity_by_url_uses_web_canonical_url() -> None:
     set_backend(backend)
 
     class FakeWebConnector:
+        source = "web"
+        is_generic_url_fallback = True
+
+        def url_entity_reference(self, url: str) -> SourceReference | None:
+            return self.resolve_url(url)
+
         def resolve_url(self, url: str) -> SourceReference | None:
             return SourceReference("web", "document", url.removesuffix("#section"))
 
@@ -523,6 +529,7 @@ async def test_get_entity_by_url_uses_web_canonical_url() -> None:
     with (
         patch("agentgraph.connectors.registry.bootstrap"),
         patch("agentgraph.server.router.classify_url", return_value=None),
+        patch("agentgraph.connectors.registry.get_all_connectors", return_value=[FakeWebConnector()]),
         patch("agentgraph.connectors.registry.get_connector", return_value=FakeWebConnector()),
     ):
         result = await get_entity_by_url("https://example.com/page#section")
@@ -532,7 +539,7 @@ async def test_get_entity_by_url_uses_web_canonical_url() -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_entity_by_url_falls_back_to_connector_metadata_urls() -> None:
+async def test_get_entity_by_url_does_not_search_original_url_metadata() -> None:
     from agentgraph.connectors.base import SourceReference
     from agentgraph.graph.query import get_entity_by_url
 
@@ -557,35 +564,19 @@ async def test_get_entity_by_url_falls_back_to_connector_metadata_urls() -> None
     ):
         result = await get_entity_by_url("https://example.com/original")
 
-    assert result is entity
-    backend.query_by_filter.assert_any_await(
-        "Document",
-        {"web_url": "https://example.com/original"},
-        1,
-        "updated_at",
-        None,
-        None,
-    )
-    backend.query_by_filter.assert_any_await(
-        "Document",
-        {"url": "https://example.com/original"},
-        1,
-        "updated_at",
-        None,
-        None,
-    )
+    assert result is None
+    backend.query_by_filter.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_get_entity_by_url_finds_rss_document_by_web_url() -> None:
+async def test_get_entity_by_url_finds_rss_document_by_identifier() -> None:
     from agentgraph.connectors.base import SourceReference
     from agentgraph.graph.query import get_entity_by_url
 
     url = "https://marginalrevolution.com/article.html?utm_source=rss"
     entity = _entity(platform="rss", title="RSS Article")
     backend = _mock_backend(
-        get_entity_by_platform=AsyncMock(return_value=None),
-        query_by_filter=AsyncMock(side_effect=[[entity]]),
+        get_entity_by_platform=AsyncMock(return_value=entity),
     )
     set_backend(backend)
 
@@ -604,9 +595,10 @@ async def test_get_entity_by_url_finds_rss_document_by_web_url() -> None:
         result = await get_entity_by_url(url)
 
     assert result is entity
-    backend.query_by_filter.assert_awaited_once_with(
-        "Document", {"web_url": url}, 1, "updated_at", None, None
+    backend.get_entity_by_platform.assert_awaited_once_with(
+        "rss", "https://marginalrevolution.com/article.html"
     )
+    backend.query_by_filter.assert_not_awaited()
 
 
 @pytest.mark.asyncio

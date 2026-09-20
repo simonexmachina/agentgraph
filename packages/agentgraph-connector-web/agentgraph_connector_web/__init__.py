@@ -159,6 +159,9 @@ class WebConnector(BaseConnector):
             resource_id=_canonical_url(url),
         )
 
+    def url_entity_reference(self, url: str) -> SourceReference | None:
+        return self.resolve_url(url)
+
     async def resolve_observation_url(
         self,
         url: str,

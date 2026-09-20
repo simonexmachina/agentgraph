@@ -19,6 +19,12 @@ get_entity_tool(entity_id, resolve=false) -> structured MCP result
 indexed HTTP(S) URL. The tool reads existing graph data and does not create an entity
 for an unknown URL.
 
+RSS articles and web documents use final fetched URLs as identifiers, for example
+`rss/https://example.com/article`. Original redirect URLs are not metadata aliases.
+An unqualified URL checks explicit connector ownership, then existing specific
+connector identities, then generic web identities. Use a platform reference to select
+a particular copy.
+
 When `resolve=true` and the entity has no title or content, the tool fetches the stub
 through its owning connector, persists the returned batch, and returns the refreshed
 entity. Direct resolution does not update `observed_at`.

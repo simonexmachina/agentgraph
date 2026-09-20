@@ -30,6 +30,12 @@ Targets accepted by `get` are full UUIDs, unambiguous UUID prefixes, platform
 references such as `slack/T123/C123`, and indexed HTTP(S) URLs. `edges` and `traverse`
 accept full UUIDs, unambiguous UUID prefixes, and platform references.
 
+RSS and web platform references may contain complete final URLs, such as
+`rss/https://example.com/article`. Original redirect URLs are not aliases. Unqualified
+URL lookup checks explicit connector ownership, existing specific-connector URL
+identities, then generic web identities; it prefers an existing RSS article over a
+separate web copy.
+
 ## MCP equivalents
 
 ```text

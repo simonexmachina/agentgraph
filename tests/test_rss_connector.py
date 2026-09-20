@@ -22,7 +22,6 @@ from agentgraph_connector_rss import (
     _entry_last_changed_at,
     _feed_id,
     _fetch_feed,
-    _hash_ref,
     _parse_authors,
     _parse_feed,
     derive_observation_url_patterns,
@@ -47,6 +46,16 @@ from agentgraph_connector_web.http import HttpFetchResult
 
 from agentgraph.connectors.base import EntityBatch, EntityMetadataPatch, EntityRecord
 from agentgraph.core.context import set_backend
+
+
+@pytest.fixture(autouse=True)
+def stub_article_http(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def fetched(url: str) -> EntityRecord:
+        return EntityRecord(
+            entity_type="Document", platform="web", platform_entity_id=url,
+            metadata={"web_url": url, "final_url": url},
+        )
+    monkeypatch.setattr("agentgraph_connector_rss._fetch_http_document", fetched)
 
 
 class _ParsedFeed:
@@ -191,17 +200,8 @@ async def test_rss_observation_patterns_read_current_feed_content_on_every_reque
 
 @pytest.mark.asyncio
 async def test_rss_observation_resolution_requires_an_exact_known_entry() -> None:
-    known_entry = {
-        "platform_entity_id": "entry/known",
-        "metadata": {
-            "feed_url": "https://example.com/feed.xml",
-            "link": "https://example.com/articles/known",
-            "web_url": "https://example.com/articles/known",
-            "http_etag": '"cached"',
-        },
-    }
     backend = MagicMock()
-    backend.query_by_filter = AsyncMock(return_value=[known_entry])
+    backend.find_entity_id = AsyncMock(return_value="known-uuid")
     set_backend(backend)
 
     ref = await RssConnector().resolve_observation_url(
@@ -209,22 +209,17 @@ async def test_rss_observation_resolution_requires_an_exact_known_entry() -> Non
     )
 
     assert ref is not None
-    assert ref.resource_id == "entry/known"
-    assert ref.fetch_meta == known_entry["metadata"]
-    backend.query_by_filter.assert_awaited_once_with(
-        "Document",
-        {"platform": "rss", "web_url": "https://example.com/articles/known"},
-        1,
-        "updated_at",
-        None,
-        None,
+    assert ref.resource_id == "https://example.com/articles/known"
+    assert ref.fetch_meta is None
+    backend.find_entity_id.assert_awaited_once_with(
+        "rss", "https://example.com/articles/known",
     )
 
 
 @pytest.mark.asyncio
 async def test_rss_observation_resolution_ignores_unknown_matching_prefix_url() -> None:
     backend = MagicMock()
-    backend.query_by_filter = AsyncMock(return_value=[])
+    backend.find_entity_id = AsyncMock(return_value=None)
     set_backend(backend)
 
     ref = await RssConnector().resolve_observation_url("https://example.com/articles/not-indexed")
@@ -236,7 +231,7 @@ async def test_rss_observation_resolution_ignores_unknown_matching_prefix_url() 
 async def test_rss_observation_resolution_ignores_configured_feed_url() -> None:
     feed_url = "https://example.com/feed.xml"
     backend = MagicMock()
-    backend.query_by_filter = AsyncMock(return_value=[])
+    backend.find_entity_id = AsyncMock(return_value=None)
     set_backend(backend)
 
     with patch(
@@ -246,14 +241,7 @@ async def test_rss_observation_resolution_ignores_configured_feed_url() -> None:
         ref = await RssConnector().resolve_observation_url(feed_url)
 
     assert ref is None
-    backend.query_by_filter.assert_awaited_once_with(
-        "Document",
-        {"platform": "rss", "web_url": feed_url},
-        1,
-        "updated_at",
-        None,
-        None,
-    )
+    backend.find_entity_id.assert_awaited_once_with("rss", feed_url)
 
 
 def test_rss_config_roundtrip_uses_config_toml(
@@ -1361,7 +1349,7 @@ async def test_fetch_feed_hydrates_entry_documents_when_requested(
 
 
 @pytest.mark.asyncio
-async def test_fetch_feed_skips_existing_articles_with_one_batched_lookup(
+async def test_fetch_feed_skips_existing_articles_using_feed_relationships(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class _Parsed:
@@ -1378,9 +1366,10 @@ async def test_fetch_feed_skips_existing_articles_with_one_batched_lookup(
 
     monkeypatch.setattr("agentgraph_connector_rss._parse_feed", AsyncMock(return_value=_Parsed()))
     backend = MagicMock()
-    entry_id = f"entry/{_hash_ref('https://example.com/feed.xml:post-1')}"
-    backend.get_entity_by_platform = AsyncMock()
-    backend.get_existing_platform_entity_ids = AsyncMock(return_value={entry_id})
+    backend.find_entity_id = AsyncMock(return_value="feed-uuid")
+    backend.get_edges = AsyncMock(return_value=[{
+        "source_ref": "https://example.com/first", "properties": {"entry_ids": ["id:post-1"]},
+    }])
     set_backend(backend)
 
     with patch(
@@ -1394,8 +1383,7 @@ async def test_fetch_feed_skips_existing_articles_with_one_batched_lookup(
         )
 
     hydrate.assert_not_awaited()
-    backend.get_entity_by_platform.assert_not_awaited()
-    backend.get_existing_platform_entity_ids.assert_awaited_once_with("rss", [entry_id])
+    backend.get_edges.assert_awaited_once_with("feed-uuid", "posted_in", "in")
     assert [entity.entity_type for entity in batch.entities] == ["Folder"]
     assert batch.persons == []
     assert batch.edges == []
@@ -1419,6 +1407,7 @@ async def test_fetch_feed_does_not_query_existing_article_urls(
     monkeypatch.setattr("agentgraph_connector_rss._parse_feed", AsyncMock(return_value=_Parsed()))
     backend = MagicMock()
     backend.query_by_filter = AsyncMock(return_value=[])
+    backend.find_entity_id = AsyncMock(return_value=None)
     set_backend(backend)
 
     async def preserve_entity(entity: EntityRecord) -> EntityRecord:
@@ -1537,10 +1526,11 @@ async def test_fetch_feed_omits_old_entries_before_lookup_and_hydration(
         ]
 
     monkeypatch.setattr("agentgraph_connector_rss._parse_feed", AsyncMock(return_value=_Parsed()))
-    existing_id = f"entry/{_hash_ref('https://example.com/feed.xml:existing-entry')}"
     backend = MagicMock()
-    backend.get_entity_by_platform = AsyncMock()
-    backend.get_existing_platform_entity_ids = AsyncMock(return_value={existing_id})
+    backend.find_entity_id = AsyncMock(return_value="feed-uuid")
+    backend.get_edges = AsyncMock(return_value=[{
+        "source_ref": "https://example.com/existing", "properties": {"entry_ids": ["id:existing-entry"]},
+    }])
     set_backend(backend)
 
     with patch(
@@ -1554,16 +1544,13 @@ async def test_fetch_feed_omits_old_entries_before_lookup_and_hydration(
             omit_outside_retention=True,
         )
 
-    queried_ids = backend.get_existing_platform_entity_ids.await_args.args[1]
-    assert existing_id in queried_ids
-    assert f"entry/{_hash_ref('https://example.com/feed.xml:old-entry')}" not in queried_ids
-    backend.get_entity_by_platform.assert_not_awaited()
+    backend.get_edges.assert_awaited_once_with("feed-uuid", "posted_in", "in")
     assert hydrate.await_count == 2
     assert [entity.title for entity in batch.entities] == ["Example Feed", "New Post", "Undated Post"]
 
 
 @pytest.mark.asyncio
-async def test_fetch_feed_keeps_entry_when_hydration_fails_without_error_log(
+async def test_fetch_feed_retries_entry_when_hydration_fails_without_error_log(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -1582,6 +1569,7 @@ async def test_fetch_feed_keeps_entry_when_hydration_fails_without_error_log(
     monkeypatch.setattr("agentgraph_connector_rss._parse_feed", AsyncMock(return_value=_Parsed()))
     backend = MagicMock()
     backend.get_entity_by_platform = AsyncMock(return_value=None)
+    backend.find_entity_id = AsyncMock(return_value=None)
     set_backend(backend)
     caplog.set_level(logging.WARNING, logger="agentgraph_connector_rss")
 
@@ -1591,11 +1579,8 @@ async def test_fetch_feed_keeps_entry_when_hydration_fails_without_error_log(
     ):
         batch = await _fetch_feed("https://example.com/feed.xml", hydrate_documents=True)
 
-    entry = batch.entities[1]
-    assert entry.platform == "rss"
-    assert entry.title == "First Post"
-    assert entry.content and "A short summary" in entry.content
-    assert entry.metadata["web_url"] == "https://missing.example/first"
+    assert [entity.entity_type for entity in batch.entities] == ["Folder"]
+    assert batch.edges == []
     assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
     assert "Skipping RSS article hydration for" in caplog.text
     assert "RuntimeError: DNS lookup failed" in caplog.text
@@ -1712,7 +1697,7 @@ async def test_rss_fetch_entry_document_does_not_read_stored_document() -> None:
     ) as fetch:
         batch = await RssConnector().fetch(
             "document",
-            "entry/cached",
+            "https://example.com/post",
             meta={
                 "feed_url": "https://example.com/feed.xml",
                 "feed_entity_id": "feed/abc",
@@ -1728,7 +1713,7 @@ async def test_rss_fetch_entry_document_does_not_read_stored_document() -> None:
     backend.get_entity_by_platform.assert_not_awaited()
     entity = batch.entities[0]
     assert entity.platform == "rss"
-    assert entity.platform_entity_id == "entry/cached"
+    assert entity.platform_entity_id == "https://example.com/post"
     assert entity.title == "Fresh article"
     assert entity.content == "Fresh article body"
     assert entity.metadata["feed_url"] == "https://example.com/feed.xml"

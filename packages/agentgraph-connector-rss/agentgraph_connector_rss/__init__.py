@@ -206,35 +206,19 @@ class RssConnector(BaseConnector):
         url: str,
         meta: dict[str, str] | None = None,
     ) -> SourceReference | None:
+        from agentgraph.server.router import find_stored_url_reference
+
         _ = meta
-        normalised_url = normalise_article_url(url)
-        if normalised_url is None:
+        return await find_stored_url_reference(self, url)
+
+    def url_entity_reference(self, url: str) -> SourceReference | None:
+        normalized = normalise_article_url(url)
+        if normalized is None:
             return None
-        try:
-            backend = get_backend()
-        except RuntimeError:
-            return None
-        entries = await backend.query_by_filter(
-            "Document",
-            {"platform": self.source, "web_url": normalised_url},
-            1,
-            "updated_at",
-            None,
-            None,
-        )
-        if not entries:
-            return None
-        entry = entries[0]
-        platform_entity_id = entry.get("platform_entity_id")
-        metadata = entry.get("metadata")
-        if not isinstance(platform_entity_id, str) or not isinstance(metadata, Mapping):
-            return None
-        return SourceReference(
-            source=self.source,
-            resource_type="document",
-            resource_id=platform_entity_id,
-            fetch_meta=_string_metadata(metadata),
-        )
+        return SourceReference(self.source, "document", normalized)
+
+    def entity_url(self, platform_entity_id: str) -> str | None:
+        return normalise_article_url(platform_entity_id)
 
     async def observation_url_patterns(self) -> list[str]:
         try:
@@ -313,24 +297,22 @@ class RssConnector(BaseConnector):
         account_id: str | None = None,
     ) -> EntityBatch:
         _ = account_id
-        feed_url = resource_id
-        if resource_type == "folder" and meta and meta.get("feed_url"):
-            feed_url = meta["feed_url"]
-        if feed_url.startswith(("http://", "https://")):
+        if resource_type == "document":
+            result = await _fetch_entry_document(resource_id, meta or {})
+            return EntityBatch(entities=[result])
+        feed_url = (meta or {}).get("feed_url", resource_id)
+        if resource_type == "folder" and feed_url.startswith(("http://", "https://")):
             return await _fetch_feed(
                 feed_url,
                 hydrate_documents=True,
             )
-        if resource_type == "document" and meta and meta.get("web_url"):
-            result = await _fetch_entry_document(resource_id, meta)
-            return EntityBatch(entities=[result])
         return EntityBatch()
 
 
 async def _fetch_feed(
     feed_url: str,
     *,
-    hydrate_documents: bool = False,
+    hydrate_documents: bool = True,
     skip_existing_articles: bool = False,
     omit_outside_retention: bool = False,
     persist_feed_payload_only: bool = False,
@@ -355,7 +337,7 @@ async def _fetch_feed(
             retention_policy="persistent",
         )
     ]
-    if persist_feed_payload_only:
+    if persist_feed_payload_only or not hydrate_documents:
         return EntityBatch(entities=entities)
 
     edges: list[EdgeRecord] = []
@@ -370,7 +352,7 @@ async def _fetch_feed(
         if omit_outside_retention
         else None
     )
-    eligible_entries: list[tuple[EntityRecord, list[FeedAuthor]]] = []
+    eligible_entries: list[tuple[EntityRecord, list[FeedAuthor], str]] = []
     for raw_entry in cast(list[Any], parsed.entries):
         entry = cast(dict[str, Any], raw_entry)
         if _entry_is_outside_retention(entry, retention_cutoff):
@@ -378,28 +360,31 @@ async def _fetch_feed(
         # RFC 4287 §4.2.1: feed-level authors apply to entries that declare none.
         authors = _parse_authors(entry) or feed_authors
         entity = _entry_to_entity(feed_url, feed_entity_id, entry, authors)
-        eligible_entries.append((entity, authors))
+        if entity.platform_entity_id:
+            eligible_entries.append((entity, authors, feed_entry_key(entry)))
 
-    existing_article_ids: set[str] = set()
-    if skip_existing_articles and eligible_entries:
-        existing_article_ids = await get_backend().get_existing_platform_entity_ids(
-            "rss",
-            [entity.platform_entity_id for entity, _ in eligible_entries],
-        )
-
-    for entity, authors in eligible_entries:
-        if entity.platform_entity_id in existing_article_ids:
+    entry_ids_by_article = await _feed_entry_ids(feed_entity_id)
+    processed_ids = {key for keys in entry_ids_by_article.values() for key in keys}
+    articles: dict[str, EntityRecord] = {}
+    feed_edges: dict[str, EdgeRecord] = {}
+    for entity, authors, entry_key in eligible_entries:
+        if skip_existing_articles and entry_key in processed_ids:
             continue
-        if hydrate_documents:
-            entity = await _hydrate_entry_document(entity)
-        entities.append(entity)
-        edges.append(
-            EdgeRecord(
-                edge_type="posted_in",
-                source_platform_entity_id=entity.platform_entity_id,
-                target_platform_entity_id=feed_entity_id,
-                platform="rss",
-            )
+        hydrated = await _hydrate_entry_document(entity)
+        if hydrated is None:
+            continue
+        entity = hydrated
+        article_id = entity.platform_entity_id
+        articles[article_id] = entity
+        keys = entry_ids_by_article.setdefault(article_id, set())
+        keys.add(entry_key)
+        processed_ids.add(entry_key)
+        feed_edges[article_id] = EdgeRecord(
+            edge_type="posted_in",
+            source_platform_entity_id=article_id,
+            target_platform_entity_id=feed_entity_id,
+            platform="rss",
+            properties={"entry_ids": sorted(keys)},
         )
         for author in authors:
             persons.setdefault(author.user_id, author.to_person())
@@ -423,10 +408,36 @@ async def _fetch_feed(
         for platform_user_id in persons
     )
 
-    batch.entities = [*entities, *batch.entities]
-    batch.edges = [*edges, *batch.edges]
+    batch.entities = [*entities, *articles.values(), *batch.entities]
+    batch.edges = [*feed_edges.values(), *edges, *batch.edges]
     batch.persons = [*persons.values(), *batch.persons]
     return batch
+
+
+def feed_entry_key(entry: Mapping[str, Any]) -> str:
+    """Namespace publisher IDs and fallback links so they cannot collide."""
+    publisher_id = entry.get("id") or entry.get("guid")
+    if publisher_id:
+        return f"id:{publisher_id}"
+    return f"url:{entry.get('link') or ''}"
+
+
+async def _feed_entry_ids(feed_entity_id: str) -> dict[str, set[str]]:
+    try:
+        backend = get_backend()
+    except RuntimeError:
+        return {}
+    feed_id = await backend.find_entity_id("rss", feed_entity_id)
+    if feed_id is None:
+        return {}
+    result: dict[str, set[str]] = {}
+    for edge in await backend.get_edges(feed_id, "posted_in", "in"):
+        properties = edge.get("properties", {})
+        keys = properties.get("entry_ids", []) if isinstance(properties, dict) else []
+        article_id = edge.get("source_ref")
+        if isinstance(article_id, str) and isinstance(keys, list):
+            result[article_id] = {key for key in keys if isinstance(key, str)}
+    return result
 
 
 async def _parse_feed(feed_url: str) -> Any:
@@ -648,8 +659,6 @@ def _entry_to_entity(
     authors: Sequence[FeedAuthor] = (),
 ) -> EntityRecord:
     link = normalise_article_url(str(entry.get("link") or "")) or ""
-    external_id = str(entry.get("id") or entry.get("guid") or link or entry.get("title") or "")
-    entity_id = f"entry/{_hash_ref(feed_url + ':' + external_id)}"
     title = str(entry.get("title") or link or "(untitled)")
     summary = _entry_text(entry)
     published = _entry_datetime(entry, "published")
@@ -670,7 +679,7 @@ def _entry_to_entity(
     return EntityRecord(
         entity_type="Document",
         platform="rss",
-        platform_entity_id=entity_id,
+        platform_entity_id=link,
         title=title,
         content="\n\n".join(content_parts),
         source_created_at=published or updated,
@@ -685,21 +694,24 @@ async def _fetch_entry_document(
     *,
     fallback: EntityRecord | None = None,
 ) -> EntityRecord:
-    web_url = _metadata_str(metadata, "web_url")
+    web_url = normalise_article_url(platform_entity_id)
     if web_url is None:
         raise ValueError(f"RSS document {platform_entity_id} has no web_url")
     fetched = await _fetch_http_document(web_url)
     fetched_metadata = dict(fetched.metadata)
+    final_url = normalise_article_url(fetched.platform_entity_id)
+    if final_url is None:
+        raise ValueError("Fetched RSS article has no valid final URL")
     rss_metadata: dict[str, str | int | float | bool | None] = {
         **_entity_record_metadata(metadata),
         **fetched_metadata,
-        "web_url": str(fetched_metadata.get("web_url") or web_url),
+        "web_url": final_url,
         "link": _metadata_str(metadata, "link") or web_url,
     }
     return EntityRecord(
         entity_type="Document",
         platform="rss",
-        platform_entity_id=platform_entity_id,
+        platform_entity_id=final_url,
         title=fetched.title or (fallback.title if fallback else None),
         content=fetched.content or (fallback.content if fallback else None),
         source_created_at=fallback.source_created_at if fallback else None,
@@ -711,9 +723,9 @@ async def _fetch_entry_document(
 
 async def _hydrate_entry_document(
     entity: EntityRecord,
-) -> EntityRecord:
+) -> EntityRecord | None:
     if _metadata_str(entity.metadata, "web_url") is None:
-        return entity
+        return None
     try:
         return await _fetch_entry_document(
             entity.platform_entity_id,
@@ -728,7 +740,7 @@ async def _hydrate_entry_document(
             exc,
         )
         logger.debug("RSS article hydration failure", exc_info=True)
-        return entity
+        return None
 
 
 async def _fetch_http_document(
@@ -752,10 +764,6 @@ def _entity_record_metadata(
 def _metadata_str(metadata: Mapping[str, object], key: str) -> str | None:
     value = metadata.get(key)
     return value if isinstance(value, str) and value else None
-
-
-def _string_metadata(metadata: Mapping[str, object]) -> dict[str, str]:
-    return {key: value for key, value in metadata.items() if isinstance(value, str)}
 
 
 def normalise_article_url(url: str) -> str | None:

@@ -476,6 +476,11 @@ class BaseConnector(ABC):
         _ = url
         return None
 
+    def url_entity_reference(self, url: str) -> SourceReference | None:
+        """Return a URL-based identity candidate, without claiming an unknown URL."""
+        _ = url
+        return None
+
     async def resolve_observation_url(
         self,
         url: str,
@@ -487,8 +492,10 @@ class BaseConnector(ABC):
         fetch metadata that must accompany a targeted fetch. The default keeps
         existing synchronous URL resolvers usable for observations.
         """
+        from agentgraph.server.router import find_stored_url_reference
+
         _ = meta
-        return self.resolve_url(url)
+        return self.resolve_url(url) or await find_stored_url_reference(self, url)
 
     async def observation_url_patterns(self) -> list[str]:
         """Return browser observation patterns, including connector-derived ones."""

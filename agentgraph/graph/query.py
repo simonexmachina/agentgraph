@@ -114,13 +114,21 @@ async def get_entity(
     """
     backend = get_backend()
     entity: EntityResult | None
-    if len(entity_id) == 36 or (len(entity_id) == 32 and "-" not in entity_id):
-        entity = await backend.get_entity_by_id(entity_id, content_limit=content_limit)
-    elif "/" in entity_id:
-        parts = entity_id.split("/")
-        platform = parts[0]
-        pid = "/".join(parts[2:]) if len(parts) >= 3 else "/".join(parts[1:])
+    if "/" in entity_id:
+        from agentgraph.connectors.base import RESOURCE_TYPE_TO_ENTITY_TYPE
+        from agentgraph.connectors.registry import get_connector
+
+        platform, pid = entity_id.split("/", 1)
+        prefix, separator, remainder = pid.partition("/")
+        connector = get_connector(platform)
+        resource_types = set(RESOURCE_TYPE_TO_ENTITY_TYPE)
+        if connector is not None:
+            resource_types.update(definition.resource_type for definition in connector.entity_types)
+        if separator and prefix in resource_types:
+            pid = remainder
         entity = await backend.get_entity_by_platform(platform, pid, content_limit=content_limit)
+    elif len(entity_id) == 36 or (len(entity_id) == 32 and "-" not in entity_id):
+        entity = await backend.get_entity_by_id(entity_id, content_limit=content_limit)
     else:
         # UUID prefix — must be unambiguous
         results = await backend.get_entities_by_id_prefix(entity_id, content_limit=content_limit)
@@ -138,15 +146,10 @@ async def get_entity_by_url(
     url: str, content_limit: int | None = None
 ) -> EntityResult | None:
     """Fetch a single existing entity by URL without fetching or creating it."""
-    from agentgraph.connectors.registry import bootstrap, get_connector
-    from agentgraph.server.router import classify_url, normalise_url_for_matching
+    from agentgraph.server.router import stored_url_candidates
 
-    normalised_url = normalise_url_for_matching(url)
-    bootstrap()
-    ref = classify_url(normalised_url)
     backend = get_backend()
-
-    if ref is not None:
+    for ref in stored_url_candidates(url):
         if content_limit is None:
             entity = await backend.get_entity_by_platform(ref.source, ref.resource_id)
         else:
@@ -155,24 +158,8 @@ async def get_entity_by_url(
             )
         if entity is not None:
             _enrich_web_url([entity])
-        return entity
-
-    connector = get_connector("web")
-    web_ref = connector.resolve_url(normalised_url) if connector is not None else None
-    if web_ref is None:
-        return None
-
-    if content_limit is None:
-        entity = await backend.get_entity_by_platform(web_ref.source, web_ref.resource_id)
-    else:
-        entity = await backend.get_entity_by_platform(
-            web_ref.source, web_ref.resource_id, content_limit=content_limit
-        )
-    if entity is None:
-        entity = await _get_entity_by_metadata_url(normalised_url, content_limit=content_limit)
-    if entity is not None:
-        _enrich_web_url([entity])
-    return entity
+            return entity
+    return None
 
 
 async def get_edges(
@@ -276,31 +263,6 @@ def _resolve_me() -> list[str] | None:
             if user_id not in user_ids:
                 user_ids.append(user_id)
     return user_ids or None
-
-
-async def _get_entity_by_metadata_url(
-    url: str, content_limit: int | None = None
-) -> EntityResult | None:
-    """Find a document whose connector metadata identifies the browser URL."""
-    backend = get_backend()
-    for key in ("web_url", "url", "final_url"):
-        if content_limit is None:
-            results = await backend.query_by_filter(
-                "Document", {key: url}, 1, "updated_at", None, None
-            )
-        else:
-            results = await backend.query_by_filter(
-                "Document",
-                {key: url},
-                1,
-                "updated_at",
-                None,
-                None,
-                content_limit=content_limit,
-            )
-        if results:
-            return results[0]
-    return None
 
 
 def is_http_url(target: str) -> bool:

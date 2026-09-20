@@ -28,4 +28,11 @@ agentgraph get TARGET [--resolve] [--json]
 agentgraph get abc123ef
 agentgraph get slack/C04TT9U6B --resolve --json
 agentgraph get https://example.com/page --json
+agentgraph get rss/https://example.com/article --json
 ```
+
+RSS articles and web documents use their final fetched URLs as platform identifiers.
+URL lookup uses indexed identities, not metadata aliases; use the final URL after
+redirects. Explicit platform references distinguish RSS and web copies. An unqualified
+URL prefers an existing RSS article over a generic web copy, after checking explicit
+connector ownership.
