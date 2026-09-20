@@ -147,7 +147,7 @@ class EdgeRecord(BaseModel):
     target_platform_entity_id: str | None = None
     target_platform_user_id: str | None = None
     platform: str
-    properties: dict[str, str | int | float | bool | None] = {}
+    properties: dict[str, str | int | float | bool | list[str] | None] = {}
 
 
 class EntityBatch(BaseModel):

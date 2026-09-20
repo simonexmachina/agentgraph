@@ -1044,11 +1044,22 @@ class SQLiteBackend(StorageBackend):
             if not target_id:
                 logger.warning("Skipping edge %s — target not resolved", edge.edge_type)
                 continue
+            properties = dict(edge.properties)
+            if properties:
+                cursor = await conn.execute(
+                    "SELECT properties FROM edges WHERE edge_type = ? "
+                    "AND source_entity_id = ? AND target_entity_id = ?",
+                    [edge.edge_type, source_id, target_id],
+                )
+                existing = await cursor.fetchone()
+                if existing is not None:
+                    properties = {**json.loads(existing["properties"]), **properties}
             await conn.execute(
                 """
                 INSERT INTO edges (id, edge_type, source_entity_id, target_entity_id, platform, properties, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT (edge_type, source_entity_id, target_entity_id) DO NOTHING
+                ON CONFLICT (edge_type, source_entity_id, target_entity_id)
+                DO UPDATE SET properties = excluded.properties WHERE ?
                 """,
                 [
                     _new_id(),
@@ -1056,8 +1067,9 @@ class SQLiteBackend(StorageBackend):
                     source_id,
                     target_id,
                     edge.platform,
-                    json.dumps(dict(edge.properties)),
+                    json.dumps(properties),
                     now,
+                    bool(edge.properties),
                 ],
             )
 

@@ -55,6 +55,32 @@ def test_fetch_policy_stale() -> None:
     assert policy.decide(old) == FetchPolicy.INCREMENTAL
 
 
+@pytest.mark.integration
+async def test_edge_properties_update_preserves_omitted_fields(sqlite_backend: SQLiteBackend) -> None:
+    from agentgraph.connectors.feed import edge_snapshot_from_edge
+    from agentgraph.mcp.models import GraphEdge
+
+    article = EntityRecord(entity_type="Document", platform="test", platform_entity_id="article")
+    feed = EntityRecord(entity_type="Folder", platform="test", platform_entity_id="feed")
+    edge = EdgeRecord(
+        edge_type="posted_in", platform="test", source_platform_entity_id="article",
+        target_platform_entity_id="feed", properties={"entry_ids": ["first"], "label": "kept"},
+    )
+    await sqlite_backend.upsert_batch(EntityBatch(entities=[article, feed], edges=[edge]), {}, {})
+    entity_id = await sqlite_backend.find_entity_id("test", "feed")
+    assert entity_id is not None
+    original = (await sqlite_backend.get_edges(entity_id, "posted_in", "in"))[0]
+    updated = edge.model_copy(update={"properties": {"entry_ids": ["first", "second"], "nullable": None}})
+    await sqlite_backend.upsert_batch(EntityBatch(edges=[updated]), {}, {})
+    await sqlite_backend.upsert_batch(EntityBatch(edges=[edge.model_copy(update={"properties": {}})]), {}, {})
+    edges = await sqlite_backend.get_edges(entity_id, "posted_in", "in")
+    assert len(edges) == 1
+    assert edges[0]["id"] == original["id"]
+    assert edges[0]["properties"] == {"entry_ids": ["first", "second"], "label": "kept", "nullable": None}
+    assert edge_snapshot_from_edge(edges[0]).properties == edges[0]["properties"]
+    assert GraphEdge.model_validate(edges[0]).properties == edges[0]["properties"]
+
+
 async def test_upsert_person_with_email(sqlite_backend: SQLiteBackend) -> None:
     batch = EntityBatch(
         persons=[
