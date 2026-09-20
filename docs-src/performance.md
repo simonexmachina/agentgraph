@@ -25,6 +25,20 @@ The report records its corpus shape, vector mode, host/Python metadata, samples,
 
 The standard workloads include exact, sparse-semantic, and common-term hybrid search; filtered document retrieval; high-degree graph traversal; direct CLI operation paths; and representative viewer HTTP routes.
 
+URL workloads check existing RSS/web identities, unknown URLs, and RSS observation
+resolution. The viewer is measured both in isolation and while four clients repeatedly
+check known and unknown browser URLs on the same storage backend. The measured request
+is `/api/graph/nodes?limit=20&depth=1&view=graph&ordered=false&page=1&size=20`.
+Two auxiliary URL entities supplement the generated corpus; every lookup checks its result.
+
+Scheduled CI runs 1,000- and 10,000-entity corpora and fails if viewer p95 exceeds
+250 ms isolated or 500 ms under concurrent URL load. Reports are retained even on
+budget failure. Run the same gate locally with:
+
+```bash
+uv run python -m benchmarks.gates .benchmarks/latest.json
+```
+
 ## Retrieval guardrails
 
 Each retrieval workload may define:

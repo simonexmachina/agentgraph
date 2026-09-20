@@ -37,18 +37,32 @@ async def backend(tmp_path: Path) -> AsyncIterator[SQLiteBackend]:
         await storage.close()
 
 
-async def test_redirected_entries_deduplicate_and_keep_all_feed_relationships(backend: SQLiteBackend) -> None:
+async def test_redirected_entries_deduplicate_and_keep_all_feed_relationships(
+    backend: SQLiteBackend,
+) -> None:
     feed_one, feed_two = "https://example.com/feed.xml", "https://example.com/other.xml"
     final = "https://example.com/article"
-    parsed = SimpleNamespace(feed={"title": "Feed"}, entries=[
-        {"id": "first", "link": "https://example.com/redirect"},
-        {"guid": "second", "link": "https://example.com/another-redirect"},
-    ])
-    fetched = EntityRecord(entity_type="Document", platform="web", platform_entity_id=final + "/?utm_source=feed#top",
-                           title="Article", content="Full content", metadata={"final_url": final})
-    with patch("agentgraph_connector_rss._parse_feed", AsyncMock(return_value=parsed)), patch(
-        "agentgraph_connector_rss._fetch_http_document", AsyncMock(return_value=fetched)
-    ) as fetch:
+    parsed = SimpleNamespace(
+        feed={"title": "Feed"},
+        entries=[
+            {"id": "first", "link": "https://example.com/redirect"},
+            {"guid": "second", "link": "https://example.com/another-redirect"},
+        ],
+    )
+    fetched = EntityRecord(
+        entity_type="Document",
+        platform="web",
+        platform_entity_id=final + "/?utm_source=feed#top",
+        title="Article",
+        content="Full content",
+        metadata={"final_url": final},
+    )
+    with (
+        patch("agentgraph_connector_rss._parse_feed", AsyncMock(return_value=parsed)),
+        patch(
+            "agentgraph_connector_rss._fetch_http_document", AsyncMock(return_value=fetched)
+        ) as fetch,
+    ):
         first = await _fetch_feed(feed_one, skip_existing_articles=True)
         await backend.upsert_batch(first, {}, {})
         article = await backend.get_entity_by_platform("rss", final)
@@ -70,13 +84,23 @@ async def test_redirected_entries_deduplicate_and_keep_all_feed_relationships(ba
 
 async def test_missing_guid_and_failed_fetch_retry(backend: SQLiteBackend) -> None:
     link = "https://example.com/original"
-    parsed = SimpleNamespace(feed={"title": "Feed"}, entries=[
-        {"title": "Same title", "link": link}, {"title": "Same title"},
-    ])
-    fetched = EntityRecord(entity_type="Document", platform="web", platform_entity_id="https://example.com/final")
-    with patch("agentgraph_connector_rss._parse_feed", AsyncMock(return_value=parsed)), patch(
-        "agentgraph_connector_rss._fetch_http_document", AsyncMock(side_effect=[RuntimeError("offline"), fetched])
-    ) as fetch:
+    parsed = SimpleNamespace(
+        feed={"title": "Feed"},
+        entries=[
+            {"title": "Same title", "link": link},
+            {"title": "Same title"},
+        ],
+    )
+    fetched = EntityRecord(
+        entity_type="Document", platform="web", platform_entity_id="https://example.com/final"
+    )
+    with (
+        patch("agentgraph_connector_rss._parse_feed", AsyncMock(return_value=parsed)),
+        patch(
+            "agentgraph_connector_rss._fetch_http_document",
+            AsyncMock(side_effect=[RuntimeError("offline"), fetched]),
+        ) as fetch,
+    ):
         failed = await _fetch_feed("https://example.com/feed", skip_existing_articles=True)
         await backend.upsert_batch(failed, {}, {})
         assert failed.edges == []
@@ -88,17 +112,36 @@ async def test_missing_guid_and_failed_fetch_retry(backend: SQLiteBackend) -> No
         assert fetch.await_count == 2
 
 
-async def test_url_lookup_parity_and_bookmarks_without_metadata_scans(backend: SQLiteBackend) -> None:
+async def test_url_lookup_parity_and_bookmarks_without_metadata_scans(
+    backend: SQLiteBackend,
+) -> None:
     url = "https://example.com/article"
-    await backend.upsert_batch(EntityBatch(entities=[
-        EntityRecord(entity_type="Document", platform=platform, platform_entity_id=url, title=platform,
-                     metadata={"web_url": url, "url": "https://example.com/original"})
-        for platform in ("rss", "web")
-    ]), {}, {})
+    await backend.upsert_batch(
+        EntityBatch(
+            entities=[
+                EntityRecord(
+                    entity_type="Document",
+                    platform=platform,
+                    platform_entity_id=url,
+                    title=platform,
+                    metadata={"web_url": url, "url": "https://example.com/original"},
+                )
+                for platform in ("rss", "web")
+            ]
+        ),
+        {},
+        {},
+    )
     connectors = [WebConnector(), RssConnector()]
-    with patch("agentgraph.connectors.registry.get_all_connectors", return_value=connectors), patch.object(
-        backend, "query_by_filter", AsyncMock(side_effect=AssertionError("metadata scan"))
-    ), patch.object(backend, "search_entities", AsyncMock(side_effect=AssertionError("search scan"))):
+    with (
+        patch("agentgraph.connectors.registry.get_all_connectors", return_value=connectors),
+        patch.object(
+            backend, "query_by_filter", AsyncMock(side_effect=AssertionError("metadata scan"))
+        ),
+        patch.object(
+            backend, "search_entities", AsyncMock(side_effect=AssertionError("search scan"))
+        ),
+    ):
         entity = await get_entity_by_url(url)
         assert entity is not None and entity["platform"] == "rss"
         assert await get_entity_by_url("https://example.com/original") is None
@@ -107,13 +150,19 @@ async def test_url_lookup_parity_and_bookmarks_without_metadata_scans(backend: S
                 resolved = await get_entity(ref)
                 assert resolved is not None and resolved["platform"] == platform
         local = await InProcessQueryClient().get_entity(url, False)
-        remote = await HttpQueryClient("http://test", transport=httpx.ASGITransport(app=app)).get_entity(url, False)
+        remote = await HttpQueryClient(
+            "http://test", transport=httpx.ASGITransport(app=app)
+        ).get_entity(url, False)
         assert local == remote
         assert entity_from_record(entity).id == entity["id"]
         ref = await classify_observation_url(url)
         assert ref is not None and ref.source == "rss" and ref.resource_id == url
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
-            marked = await client.post("/api/extension/bookmark", json={"url": url, "bookmarked": True})
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            marked = await client.post(
+                "/api/extension/bookmark", json={"url": url, "bookmarked": True}
+            )
             assert marked.status_code == 200
             result = await client.post("/api/extension/page", json={"url": url})
             assert result.json()["entity"]["bookmarked"] is True
@@ -127,3 +176,18 @@ def test_rss_url_normalization_is_idempotent() -> None:
     assert normalise_article_url(expected) == expected
     ref = RssConnector().url_entity_reference(raw)
     assert ref is not None and ref.resource_id == expected
+
+
+async def test_identity_and_feed_relationship_queries_use_indexes(backend: SQLiteBackend) -> None:
+    identity = await backend._fetchall(
+        "EXPLAIN QUERY PLAN SELECT id FROM entities WHERE platform = ? AND platform_entity_id = ?",
+        ["rss", "https://example.com/article"],
+    )
+    edges = await backend._fetchall(
+        "EXPLAIN QUERY PLAN SELECT properties FROM edges WHERE target_entity_id = ? AND edge_type = ?",
+        ["feed-uuid", "posted_in"],
+    )
+    for plan in (identity, edges):
+        details = " ".join(str(row["detail"]) for row in plan)
+        assert "SEARCH" in details and "INDEX" in details
+        assert "SCAN" not in details

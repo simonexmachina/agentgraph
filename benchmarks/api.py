@@ -13,10 +13,12 @@ from agentgraph.backends.sqlite.backend import SQLiteBackend
 from agentgraph.core.context import clear_backend, set_backend
 from agentgraph.graph.operations import traverse_entity
 from agentgraph.graph.query import search_entities
+from agentgraph.server.app import extension_page
 from agentgraph.server.browse_api import router as browse_router
 from benchmarks.corpus import query_vector, seed_sqlite_database
 from benchmarks.models import BenchmarkRun, CorpusSpec
 from benchmarks.runner import evaluate_search_quality, measure_workload
+from benchmarks.url_lookup import measure_url_workloads
 
 
 async def run_api_suite(
@@ -39,6 +41,7 @@ async def run_api_suite(
         raise RuntimeError("Seeded benchmark hub was not persisted")
     app = FastAPI()
     app.include_router(browse_router)
+    app.add_api_route("/api/extension/page", extension_page, methods=["POST"])
     transport = httpx.ASGITransport(app=app)
     try:
         async with httpx.AsyncClient(transport=transport, base_url="http://benchmark") as client:
@@ -82,6 +85,9 @@ async def run_api_suite(
                         kind="backend",
                     ),
                 ]
+                workloads.extend(await measure_url_workloads(
+                    backend, client, iterations=iterations, warmup_iterations=warmup_iterations,
+                ))
     finally:
         clear_backend()
         await backend.close()

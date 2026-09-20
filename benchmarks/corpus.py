@@ -61,8 +61,8 @@ def build_seeded_corpus(spec: CorpusSpec) -> tuple[list[EntityBatch], SeededCorp
                     platform_entity_id=platform_id,
                     title=f"Benchmark {entity_type} {index}",
                     content=_fixture_content(index, cluster),
-                    created_at=base_time + timedelta(minutes=index),
-                    updated_at=base_time + timedelta(minutes=index),
+                    source_created_at=base_time + timedelta(minutes=index),
+                    source_updated_at=base_time + timedelta(minutes=index),
                     metadata={"cluster": cluster, "fixture": "benchmark"},
                 )
             )

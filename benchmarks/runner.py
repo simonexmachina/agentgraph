@@ -143,7 +143,7 @@ async def run_backend_suite(
                     platform_entity_id=f"ingest-{start + offset:08d}",
                     title=f"Ingest benchmark {start + offset}",
                     content=f"ingest topic-{offset % spec.cluster_count} fixture",
-                    created_at=datetime.now(UTC),
+                    source_created_at=datetime.now(UTC),
                 )
                 for offset in range(25)
             ]

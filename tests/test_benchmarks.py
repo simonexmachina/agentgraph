@@ -84,12 +84,43 @@ async def test_api_suite_exercises_direct_operations_and_viewer_routes(tmp_path:
         "operations.search.exact",
         "api.viewer_nodes",
         "operations.graph_traversal",
+        "api.url_hit",
+        "api.url_miss",
+        "api.viewer_nodes_20",
+        "operations.rss_observation_url",
+        "api.viewer_nodes_20_with_url_load",
     }
     exact = next(
         workload for workload in report.workloads if workload.name == "operations.search.exact"
     )
     assert exact.quality is not None
     assert exact.quality.must_return_ids_present
+
+
+def test_viewer_latency_gates_reject_slow_or_missing_workloads() -> None:
+    from benchmarks.gates import VIEWER_BUDGETS_MS, check_budgets
+    from benchmarks.models import BenchmarkRun, WorkloadResult
+
+    report = BenchmarkRun(
+        corpus=CorpusSpec(name="tiny", entity_count=30),
+        vector_mode="sqlite-vec",
+        cold=False,
+        workloads=[],
+    )
+    assert len(check_budgets(report)) == 2
+    for name, budget in VIEWER_BUDGETS_MS.items():
+        report.workloads.append(
+            WorkloadResult(
+                name=name,
+                kind="api",
+                warmup_iterations=0,
+                summary=summarize_samples([budget]),
+                operations_per_second=1,
+            )
+        )
+    assert check_budgets(report) == []
+    report.workloads[1].summary.p95_ms = 501
+    assert len(check_budgets(report)) == 1
 
 
 @pytest.mark.integration

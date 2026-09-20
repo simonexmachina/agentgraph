@@ -8,6 +8,9 @@ on:
 jobs:
   server-side-workloads:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        entities: [1000, 10000]
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -16,9 +19,12 @@ jobs:
       - name: Install dependencies
         run: uv sync --extra all
       - name: Run medium workload suite
-        run: uv run python -m benchmarks.suite --entities 10000 --iterations 20 --vector-mode sqlite-vec --output .benchmarks/latest.json
+        run: uv run python -m benchmarks.suite --entities ${{ matrix.entities }} --iterations 20 --vector-mode sqlite-vec --output .benchmarks/latest.json
+      - name: Enforce viewer latency budgets
+        run: uv run python -m benchmarks.gates .benchmarks/latest.json
       - name: Upload performance report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: performance-${{ github.sha }}
+          name: performance-${{ github.sha }}-${{ matrix.entities }}
           path: .benchmarks/latest.json
