@@ -189,48 +189,6 @@ in-process. Allowlisting the socket buys you two things: reads stop paying to lo
 embedding model, and `fetch`/`download` start working, because the server holds the
 connector credentials and the network access a sandbox denies.
 
-### Claude Code
-
-Add the socket to `sandbox.network.allowUnixSockets`, in either `~/.claude/settings.json`
-or the project's `.claude/settings.json`:
-
-```json
-{
-  "sandbox": {
-    "network": {
-      "allowUnixSockets": ["/Users/you/.agentgraph/agentgraph.sock"]
-    }
-  }
-}
-```
-
-Loopback TCP has no equivalent setting; `sandbox.network.allowedDomains` governs DNS
-resolution, not the TCP connect, so listing `127.0.0.1` there does not help.
-
-If you would rather keep the socket out of it, `sandbox.excludedCommands: ["agentgraph"]`
-runs the CLI outside the sandbox entirely, which also restores loopback TCP. That
-grants `agentgraph` your full user privileges, so prefer the socket allowlist.
-
-### Codex
-
-Use the local MCP server for Codex Desktop and TUI access. MCP servers have their own
-configuration and approval controls, separate from the shell sandbox permission mode;
-installing AgentGraph does not add an AgentGraph-specific permission profile.
-
-```bash
-codex mcp add agentgraph -- "$(which agentgraph)" mcp-serve
-```
-
-The ChatGPT Desktop app and Codex TUI share the host MCP configuration. Use the CLI
-skill for terminal workflows when MCP is unavailable. See [Install](install.html) for
-the complete client setup.
-
-### OpenCode
-
-Nothing to configure. OpenCode's permission model gates the bash *tool* rather than
-applying an OS sandbox, so once a command is approved it runs with your full
-privileges and both transports work.
-
 ### Checking which transport is in use
 
 ```bash
