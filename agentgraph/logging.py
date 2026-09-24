@@ -10,12 +10,13 @@ from pathlib import Path
 MAX_LOG_BYTES = 1024 * 1024
 LOG_BACKUP_COUNT = 7
 _AGENTGRAPH_HANDLER = "_agentgraph_handler"
+_AGENTGRAPH_STREAM_HANDLER = "_agentgraph_stream_handler"
 
 
 def configure_logging(level: str = "INFO", log_file: str | Path | None = None) -> None:
     log_level = getattr(logging, level.upper(), logging.INFO)
 
-    # Force-configure the root logger, overriding any handlers uvicorn already added.
+    # Configure the root logger so application logs reach both destinations.
     root = logging.getLogger()
     root.setLevel(log_level)
 
@@ -48,12 +49,26 @@ def configure_logging(level: str = "INFO", log_file: str | Path | None = None) -
             setattr(handler, _AGENTGRAPH_HANDLER, True)
             root.addHandler(handler)
         handler.setLevel(log_level)
-        handler.setFormatter(
-            logging.Formatter(
-                fmt="%(asctime)s %(levelname)-8s %(name)s  %(message)s",
-                datefmt="%H:%M:%S",
-            )
+        formatter = logging.Formatter(
+            fmt="%(asctime)s %(levelname)-8s %(name)s  %(message)s",
+            datefmt="%H:%M:%S",
         )
+        handler.setFormatter(formatter)
+
+        stream_handler = next(
+            (
+                candidate
+                for candidate in root.handlers
+                if getattr(candidate, _AGENTGRAPH_STREAM_HANDLER, False)
+            ),
+            None,
+        )
+        if stream_handler is None:
+            stream_handler = logging.StreamHandler(sys.stderr)
+            setattr(stream_handler, _AGENTGRAPH_STREAM_HANDLER, True)
+            root.addHandler(stream_handler)
+        stream_handler.setLevel(log_level)
+        stream_handler.setFormatter(formatter)
     elif not root.handlers:
         handler = logging.StreamHandler(sys.stdout)
         handler.setFormatter(

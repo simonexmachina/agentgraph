@@ -114,8 +114,9 @@ Raise it if the server is slow to accept connections on a loaded machine.
 
 Default: `$AGENTGRAPH_CONFIG_DIR/agentgraph.log`
 
-Path for the rotating server log. The default is stored in the per-user config
-directory rather than `/tmp`, so separate user accounts do not share a log file.
+Path for the rotating server log. Server log messages also appear in the terminal
+on stderr. The default file is stored in the per-user config directory rather
+than `/tmp`, so separate user accounts do not share a log file.
 
 ### `AGENTGRAPH_OBSERVATION_THRESHOLD_SECONDS`
 
