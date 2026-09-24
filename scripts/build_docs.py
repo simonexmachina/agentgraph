@@ -19,7 +19,7 @@ DOCS_SRC = ROOT / "docs-src"
 DOCS_OUT = ROOT / "docs"
 GITHUB_ROOT = "https://github.com/simonexmachina/agentgraph/blob/main"
 SITE_ROOT = "https://agentgraph.simonwa.de"
-SOCIAL_IMAGE_URL = f"{SITE_ROOT}/assets/og-image.png?v=2"
+SOCIAL_IMAGE_URL = f"{SITE_ROOT}/assets/og-image.png?v=3"
 SECTION_ORDER = {"Start": 10, "Configuration": 15, "Reference": 20, "MCP": 30}
 
 _FORMATTER = HtmlFormatter(nowrap=True, classprefix="tok-")
@@ -382,7 +382,7 @@ def build_page(page: Page, pages: list[Page], index: int, nav_html: str) -> str:
     description = html.escape(page.meta.description, quote=True)
     body_class = "home" if page.meta.output_path == Path("index.html") else ""
     document_title = (
-        "AgentGraph - Local-first context for AI agents"
+        "AgentGraph - The perception layer for coding agents"
         if body_class == "home"
         else f"{title} - AgentGraph"
     )

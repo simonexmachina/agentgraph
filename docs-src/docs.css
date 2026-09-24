@@ -158,12 +158,40 @@ body:not(.home) .doc>h1:first-child{display:none}
 .doc p{margin:0 0 1.05em}
 .page-summary{margin:0 0 1.4em;color:var(--muted);font-size:1rem;max-width:62ch}
 .home-intro{font-size:1.12rem;max-width:68ch;margin-bottom:1.5rem}
-.home-intro .positioning{font-size:1.28rem;line-height:1.5;color:var(--ink);margin-bottom:.8rem}
+.home-intro .home-tagline{font-family:var(--serif);font-size:2.2rem;line-height:1.16;color:var(--ink);margin:0 0 .55rem;font-weight:600}
+.home-intro .positioning{font-size:1.13rem;line-height:1.55;color:var(--text);margin-bottom:.6rem;max-width:62ch}
+.home-intro .home-boundary{font-size:.92rem;color:var(--muted);margin:0}
 .home-intro .boundary{border-left:3px solid var(--ecto);padding-left:14px;color:var(--text);font-weight:550}
-.home-actions{display:flex;flex-wrap:wrap;gap:10px;margin:1.2rem 0 1.8rem}
+.home-actions{display:flex;flex-wrap:wrap;gap:10px;margin:1.2rem 0 1.4rem}
 .home-actions a{display:inline-flex;align-items:center;min-height:42px;border-radius:8px;padding:9px 15px;border:1px solid var(--line);font-weight:600;text-decoration:none}
 .home-actions .primary{background:var(--ecto);border-color:var(--ecto);color:#04130c}
 .home-actions a:hover{text-decoration:none;opacity:.9}
+.home .doc p a,.home .doc li a{text-decoration:underline;text-underline-offset:.18em}
+.home .doc h2{margin:1.65em 0 .55em}
+.home .doc h2:first-of-type{margin-top:1.1em}
+.home-demo-intro{max-width:69ch}
+.demo-story{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:16px 0 18px;margin:1rem 0 1rem}
+.demo-question{font-family:var(--serif);font-size:1.23rem;line-height:1.4;color:var(--ink);margin:0 0 1rem!important;max-width:72ch}
+.demo-question span{display:block;font-family:var(--sans);font-size:.68rem;line-height:1.5;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--ecto);margin-bottom:5px}
+.demo-evidence{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;margin:0 0 1rem}
+.demo-evidence>div{min-width:0;border-left:2px solid var(--line);padding:3px 14px 2px}
+.demo-evidence>div:first-child{border-left-color:var(--ecto)}
+.demo-evidence>div:nth-child(2){border-left-color:var(--moon)}
+.demo-evidence>div:nth-child(3){border-left-color:var(--hot)}
+.demo-evidence strong{display:block;font-size:.78rem;line-height:1.3;margin-bottom:5px}
+.demo-evidence p{font-size:.88rem;line-height:1.5;color:var(--muted);margin:0}
+.demo-result{font-size:.91rem;line-height:1.55;margin:0!important;color:var(--text)}
+.perception-flow{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:18px 0;margin:1.2rem 0 1.8rem}
+.perception-flow>div{min-width:0}
+.perception-flow strong,.perception-flow span:not(.flow-arrow){display:block}
+.perception-flow strong{font-size:.92rem}
+.perception-flow div span{font-size:.77rem;line-height:1.4;color:var(--muted);margin-top:4px}
+.perception-flow .flow-arrow{color:var(--ecto);font-size:1.25rem;line-height:1}
+.connector-coverage{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px 24px;list-style:none;padding:0!important;margin:1rem 0 1.3rem!important}
+.connector-coverage li{margin:0!important;border-top:1px solid var(--line);padding:8px 0}
+.connector-coverage strong,.connector-coverage span{display:block}
+.connector-coverage strong{font-size:.91rem}
+.connector-coverage span{font-size:.81rem;line-height:1.45;color:var(--muted);margin-top:3px}
 .architecture-figure{margin:1.5rem 0 2rem;overflow-x:auto}
 .architecture-figure img{display:block;width:100%;min-width:720px;height:auto;border:1px solid var(--line);border-radius:8px;background:var(--bg0)}
 .architecture-figure-fit img{min-width:0}
@@ -243,6 +271,11 @@ body:not(.home) .doc>h1:first-child{display:none}
 }
 @media(max-width:520px){
   main{padding:60px 14px 48px}
+  .home-intro .home-tagline{font-size:1.8rem}
+  .demo-evidence{grid-template-columns:1fr;gap:12px}
+  .perception-flow{grid-template-columns:1fr;gap:10px}
+  .perception-flow .flow-arrow{transform:rotate(90deg);justify-self:start;margin-left:4px}
+  .connector-coverage{grid-template-columns:1fr}
   .doc pre{margin-left:-14px;margin-right:-14px;border-radius:0;border-left:0;border-right:0}
   .architecture-figure{margin-left:-14px;margin-right:-14px;padding:0 14px}
 }
