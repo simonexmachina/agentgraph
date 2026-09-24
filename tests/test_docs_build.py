@@ -75,6 +75,8 @@ def test_build_writes_docs_site(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     architecture_svg = output_dir / "assets" / "diagrams" / "architecture-overview-dark.svg"
     index_html = (output_dir / "index.html").read_text(encoding="utf-8")
     install_html = (output_dir / "install.html").read_text(encoding="utf-8")
+    auth_html = (output_dir / "commands" / "auth.html").read_text(encoding="utf-8")
+    onboard_html = (output_dir / "commands" / "onboard.html").read_text(encoding="utf-8")
     configuration_html = (output_dir / "configuration.html").read_text(encoding="utf-8")
     extending_html = (output_dir / "extending.html").read_text(encoding="utf-8")
     rss_html = (output_dir / "rss.html").read_text(encoding="utf-8")
@@ -191,6 +193,15 @@ def test_build_writes_docs_site(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     assert "Connect sources" in install_html
     assert "onboard" in install_html
     assert "Authenticate connectors" not in install_html
+    for page_html in (install_html, auth_html, onboard_html):
+        assert '<aside class="heads-up">' in page_html
+        assert '<p class="heads-up-label">Heads up</p>' in page_html
+        assert (
+            'If you see a warning "Google hasn’t verified this app" it\'s caused by '
+            '<a href="https://issuetracker.google.com/issues/499336447">'
+            'this bug in GCP</a>, and you will need to choose <em>Advanced</em> '
+            'and explicitly allow access.'
+        ) in page_html
     assert "agentgraph search" in search_html
     assert "<code>agentgraph search</code>" in search_html
     assert 'href="../docs.css"' in search_html

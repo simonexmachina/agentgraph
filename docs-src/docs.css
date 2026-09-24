@@ -224,6 +224,10 @@ body:not(.home) .doc>h1:first-child{display:none}
 .doc pre .copy.failed{background:var(--hot);border-color:var(--hot);color:var(--selection-fg);opacity:1}
 .doc blockquote{margin:1.4em 0;padding:10px 16px;border-left:3px solid var(--ecto);background:var(--accent-soft);border-radius:0 8px 8px 0;color:var(--text)}
 .doc blockquote p:last-child{margin-bottom:0}
+.doc .heads-up{margin:1.2em 0 1.6em;padding:13px 17px;border-left:3px solid var(--moon);background:var(--panel)}
+.doc .heads-up-label{margin:0 0 .35em;color:var(--moon);font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.doc .heads-up p:last-child{margin-bottom:0}
+.doc .heads-up a{text-decoration:underline;text-underline-offset:.18em}
 .doc table{width:100%;border-collapse:collapse;margin:1.2em 0;font-size:.92em}
 .doc th,.doc td{border-bottom:1px solid var(--line);padding:9px 10px;text-align:left;vertical-align:top}
 .doc th{font-weight:600;color:var(--ink);background:var(--panel);border-bottom:1px solid var(--line)}

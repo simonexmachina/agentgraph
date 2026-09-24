@@ -22,9 +22,10 @@ agentgraph onboard
 
 Connectors without an interactive setup flow, such as generic Web, are skipped. RSS setup runs last.
 
-## Google auth warning
-
-The Google auth flow for AgentGraph will show an unverified/unsafe app warning because of [this bug in GCP](https://issuetracker.google.com/issues/499336447). To continue, choose _Advanced_ and  and explicitly allow access.
+<aside class="heads-up">
+  <p class="heads-up-label">Heads up</p>
+  <p>If you see a warning "Google hasn’t verified this app" it's caused by <a href="https://issuetracker.google.com/issues/499336447">this bug in GCP</a>, and you will need to choose <em>Advanced</em> and explicitly allow access.</p>
+</aside>
 
 ## Example
 
