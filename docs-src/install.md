@@ -57,6 +57,10 @@ Run guided onboarding to set up each installed connector that provides an intera
 agentgraph onboard
 ```
 
+## Google auth warning
+
+The Google auth flow for AgentGraph will show an unverified/unsafe app warning because of [this bug in GCP](https://issuetracker.google.com/issues/499336447). To continue, choose _Advanced_ and  and explicitly allow access.
+
 ## Install the agentgraph skill
 
 The following command installs the `agentgraph` skill in `~/.agents/skills` and `~/.claude/skills`:

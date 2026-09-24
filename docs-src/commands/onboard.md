@@ -24,9 +24,7 @@ Connectors without an interactive setup flow, such as generic Web, are skipped. 
 
 ## Google auth warning
 
-`agentgraph onboard` may launch the Google setup flow when the Google connector is installed. AgentGraph's Google OAuth app is not verified yet, so Gmail and Google Drive auth can show Google's unverified/unsafe app warning. To continue, open the advanced option and explicitly allow access.
-
-See [Google OAuth verification](/google-oauth-verification.html) for the current verification status and maintainer procedure.
+The Google auth flow for AgentGraph will show an unverified/unsafe app warning because of [this bug in GCP](https://issuetracker.google.com/issues/499336447). To continue, choose _Advanced_ and  and explicitly allow access.
 
 ## Example
 
