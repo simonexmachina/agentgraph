@@ -101,7 +101,10 @@ def test_build_writes_docs_site(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     assert 'src="assets/diagrams/architecture-overview-dark.svg"' in how_it_works_html
     assert 'class="architecture-figure architecture-figure-fit"' in how_it_works_html
     assert "<title>AgentGraph - The perception layer for coding agents</title>" in index_html
-    assert "The perception layer for coding agents." in index_html
+    assert re.search(
+        r'<p class="home-tagline">[^<]*perception layer for coding agents\.</p>',
+        index_html,
+    )
     assert "AgentGraph supplies context to your agent" in index_html
     assert 'href="demo.html">Try the demo</a>' in index_html
     assert "Maya requires five-minute synchronization by September 30." in index_html
