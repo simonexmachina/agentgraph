@@ -9,7 +9,7 @@ output = "demo.html"
 source_path = "docs-src/demo.md"
 +++
 
-This demo investigates a technical decision from a fictional Gmail thread, Slack discussion, Drive plan, and two research documents. Everything is included in a static fixture, so the demo focuses on cross-source search, graph traversal, and evidence-backed reasoning.
+This demo investigates a technical decision from a fictional Gmail thread, Slack discussion, Drive plan, and two research documents.
 
 ## The question
 
@@ -76,13 +76,3 @@ agentgraph serve
 ```
 
 Then open [http://127.0.0.1:8765/viewer](http://127.0.0.1:8765/viewer). The viewer shows the same seeded Atlas entities and relationships that the coding agent investigated. See the [viewer overview](/viewer.html) for a visual tour.
-
-## 5. Cleanup
-
-Stop the server with Control-C, and remove only the demo fixtures:
-
-```bash
-agentgraph demo remove
-```
-
-To configure AgentGraph for your own sources, continue with [Install](/install.html).

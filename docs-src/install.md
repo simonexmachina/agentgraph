@@ -62,6 +62,12 @@ agentgraph onboard
   <p>If you see a warning "Google hasn’t verified this app" it's caused by <a href="https://issuetracker.google.com/issues/499336447">this bug in GCP</a>, and you will need to choose <em>Advanced</em> and explicitly allow access.</p>
 </aside>
 
+## Install the browser extension
+
+Install the [AgentGraph Chrome Extension](https://chromewebstore.google.com/detail/agentgraph-extension/iilkfclglabllelhjacijldknapbhidi?authuser=0&hl=en-AU) from the Chrome Web Store.
+
+After the extension is installed, start `agentgraph serve`, then open a supported resource and keep it focused past the default three-second observation threshold.
+
 ## Install the agentgraph skill
 
 The following command installs the `agentgraph` skill in `~/.agents/skills` and `~/.claude/skills`:
@@ -70,17 +76,10 @@ The following command installs the `agentgraph` skill in `~/.agents/skills` and 
 agentgraph install-skill
 ```
 
-## Install the browser extension
-
-Install the [AgentGraph Chrome Extension](https://chromewebstore.google.com/detail/agentgraph-extension/iilkfclglabllelhjacijldknapbhidi?authuser=0&hl=en-AU) from the Chrome Web Store.
-
-After the extension is installed, start `agentgraph serve`, then open a supported resource and keep it focused past the default three-second observation threshold.
-
 ## Connect an MCP client
 
-AgentGraph ships an MCP server, so any local MCP client can search and traverse the
-graph. MCP is the recommended connection for **ChatGPT Desktop Work Mode**, **Codex**,
-**Claude Desktop**, and **Claude Code**. To print the setup for all of them:
+MCP is the recommended connection for **ChatGPT Desktop Work Mode**, **Codex**,
+**Claude Desktop**, and **Claude Code**.
 
 ```bash
 agentgraph mcp-config
@@ -100,19 +99,13 @@ screen: enter the printed executable under **Command to launch** and `mcp-serve`
 **Claude Desktop** reads a config file — add the printed JSON to
 `~/Library/Application Support/Claude/claude_desktop_config.json`.
 
-Every client runs the same `agentgraph mcp-serve` process and exposes the same tools.
 How those tools reach the graph follows
 [`AGENTGRAPH_QUERY_TRANSPORT`](configuration.html#agentgraph-query-transport): by
-default the local server when one is reachable, otherwise the database directly, so
-the MCP client works whether or not `agentgraph serve` is running.
-
-The installed skill is a CLI fallback for terminal workflows and clients without MCP.
-ChatGPT Web and Claude cloud sessions need a separately hosted remote MCP server and
-are not covered by this local setup.
+default the local server when one is reachable, otherwise the database directly.
 
 ## Run in the background
 
-`agentgraph serve` needs to be long-running to provide ongoing polling and to support the viewer.
+`agentgraph serve` should be a long-running process to host the viewer and provide continuous polling of the connected sources.
 
 ### macOS launchd
 

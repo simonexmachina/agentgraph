@@ -13,18 +13,17 @@ AgentGraph is infrastructure for the agent you already use. It provides a CLI an
 
 <figure class="architecture-figure architecture-figure-fit" tabindex="0">
   <img src="/assets/diagrams/architecture-overview-dark.svg" alt="Observe, Fetch, and Refresh converge on connector packages that read selected services and write to a local graph. Agents access the graph through the CLI or MCP, while Expiry applies the retention model.">
-  <figcaption>Observe, Fetch, and Refresh converge on connector packages and the local graph. Expiry applies the retention model to stored content.</figcaption>
 </figure>
 
 ## Three ways context enters
 
 ### Observe
 
-The Chrome extension downloads the current set of connector-owned URL patterns from the local AgentGraph server. When your browser remains focused for 3 seconds on a page that has an installed connector, the extension sends the URL to the local server.
+When your browser remains focused for 3 seconds on a page that has an installed connector, the Chrome extension sends the URL to the local server.
 
 The owning connector then fetches the resource through its source API and inserts entities, people, and edges into the graph.
 
-This is targeted capture, not a copy of arbitrary browsing. Unknown URLs are ignored. The extension talks to `localhost` or `127.0.0.1` and does not send any page content to the AgentGraph backend.
+Unknown URLs are ignored - this is targeted capture, not a copy of arbitrary browsing. The extension talks only to `localhost` and does not send any page content.
 
 ### Fetch
 
@@ -32,7 +31,7 @@ An agent can request a resource directly with `agentgraph fetch <platform> <reso
 
 ### Refresh
 
-Connectors poll source APIs for changes to keep the entity updated in the graph when the resource changes. Gmail's first poll establishes a change checkpoint without importing existing mail; use its `ingest` command for the optional broader historical import.
+Connectors poll source APIs for changes to keep the entity updated in the graph when the resource changes.
 
 ## The graph model
 
@@ -43,8 +42,6 @@ Connectors add the following items to the graph:
 - **Edges:** relationships such as `authored`, `participated_in`, `posted_in`, `replied_to`, `mentions`, `contains`, and `references`.
 
 When a connector discovers a linked resource without fetching its full contents, AgentGraph creates a **stub**: a lightweight placeholder that preserves the entity and its relationships. A stub is hydrated with the complete resource only when it is explicitly fetched or resolved.
-
-Content is available through full-text and semantic search. Edges make it possible to move from a person to their conversations and documents, from a message to its thread or channel, and from a folder or source document to related context.
 
 ## Attention and retention
 
