@@ -503,7 +503,18 @@ async def test_sqlite_delete_entities_is_atomic_and_preserves_bookmarked_childre
         [
             ["parent", "feed", "Feed", 0, None],
             ["other", "other", "Other", 0, None],
+            ["explicit-bookmarked", "explicit", "Explicit", 1, None],
             ["bookmarked", "saved", "Saved", 1, "parent"],
+            ["middle", "middle", "Middle", 0, "parent"],
+            ["unbookmarked-leaf", "leaf", "Leaf", 0, "middle"],
+            ["bookmarked-grandchild", "saved-grandchild", "Saved grandchild", 1, "middle"],
+            [
+                "bookmarked-great-grandchild",
+                "saved-great-grandchild",
+                "Saved great grandchild",
+                1,
+                "bookmarked-grandchild",
+            ],
         ],
     )
     await conn.executemany(
@@ -517,12 +528,28 @@ async def test_sqlite_delete_entities_is_atomic_and_preserves_bookmarked_childre
     assert await sqlite_backend.get_entity_by_id("parent") is not None
     assert await sqlite_backend._fetchval("SELECT count(*) FROM entities_fts WHERE id = ?", ["parent"]) == 1
 
-    deleted = await sqlite_backend.delete_entities(["parent", "other"])
+    deleted = await sqlite_backend.delete_entities(
+        ["parent", "other", "explicit-bookmarked"]
+    )
 
-    assert [entity["id"] for entity in deleted] == ["parent", "other"]
+    assert [entity["id"] for entity in deleted] == [
+        "parent",
+        "other",
+        "explicit-bookmarked",
+    ]
     saved = await sqlite_backend.get_entity_by_id("bookmarked")
     assert saved is not None
     assert saved["retention_parent_id"] is None
+    saved_grandchild = await sqlite_backend.get_entity_by_id("bookmarked-grandchild")
+    assert saved_grandchild is not None
+    assert saved_grandchild["retention_parent_id"] is None
+    saved_great_grandchild = await sqlite_backend.get_entity_by_id(
+        "bookmarked-great-grandchild"
+    )
+    assert saved_great_grandchild is not None
+    assert saved_great_grandchild["retention_parent_id"] is None
+    assert await sqlite_backend.get_entity_by_id("middle") is None
+    assert await sqlite_backend.get_entity_by_id("unbookmarked-leaf") is None
     assert await sqlite_backend._fetchval("SELECT count(*) FROM entities_fts") == 0
 
 

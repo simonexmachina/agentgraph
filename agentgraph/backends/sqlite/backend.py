@@ -1264,11 +1264,20 @@ class SQLiteBackend(StorageBackend):
                     placeholders = ",".join("?" * len(ids))
                     await conn.execute(
                         f"""
+                        WITH RECURSIVE descendants(id) AS (
+                            SELECT id FROM entities
+                            WHERE retention_parent_id IN ({placeholders})
+                            UNION
+                            SELECT child.id
+                            FROM entities AS child
+                            JOIN descendants AS parent ON child.retention_parent_id = parent.id
+                        )
                         UPDATE entities
                         SET retention_parent_id = NULL, updated_at = ?
-                        WHERE retention_parent_id IN ({placeholders}) AND bookmarked = 1
+                        WHERE id IN (SELECT id FROM descendants)
+                          AND bookmarked = 1
                         """,
-                        [_now(), *ids],
+                        [*ids, _now()],
                     )
                     cursor = await conn.execute(
                         f"""
