@@ -76,7 +76,7 @@ Default: `$AGENTGRAPH_CONFIG_DIR/agentgraph.sock`
 Unix socket the server listens on in addition to TCP, and the first transport CLI
 clients try. A socket matters because several coding-agent sandboxes block loopback
 TCP outright while still permitting an allowlisted Unix socket — see
-[Coding agent sandboxes](#coding-agent-sandboxes). The socket is created with mode
+[AI agent sandboxes](#ai-agent-sandboxes). The socket is created with mode
 `0600`, so only your user account can reach it.
 
 Set this to an empty value, `none`, or `null` to serve and query over TCP only.
@@ -176,9 +176,9 @@ process already uses `8766`; the callback URL remains on `localhost` at
 redirect URLs. AgentGraph prints a manifest with the configured callback URL during
 Slack app setup.
 
-## Coding agent sandboxes
+## AI agent sandboxes
 
-Several coding agents run shell commands inside an OS-level sandbox. Most of them
+Agents run shell commands inside an OS-level sandbox, and most of them
 **deny loopback TCP outright**, so a sandboxed `agentgraph` cannot reach the local
 server over `127.0.0.1` no matter what the agent's domain allowlist says. A Unix
 socket is the transport that crosses those boundaries, which is why
@@ -187,9 +187,7 @@ socket is the transport that crosses those boundaries, which is why
 You do not have to configure anything. With
 [`AGENTGRAPH_QUERY_TRANSPORT`](#agentgraph-query-transport) left at `auto`, a
 sandboxed CLI that cannot reach the server falls back to reading the database
-in-process. Allowlisting the socket buys you two things: reads stop paying to load the
-embedding model, and `fetch`/`download` start working, because the server holds the
-connector credentials and the network access a sandbox denies.
+in-process, but this has performance impacts.
 
 ### Checking which transport is in use
 

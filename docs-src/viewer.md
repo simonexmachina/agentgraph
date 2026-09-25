@@ -9,49 +9,38 @@ output = "viewer.html"
 source_path = "docs-src/viewer.md"
 +++
 
-Start the local server with `agentgraph serve`, then open [the viewer](http://127.0.0.1:8765/viewer). The screenshots below show the fictional Atlas data from the [demo](/demo.html).
+Start the local server with `agentgraph serve`, then open the viewer at [`http://127.0.0.1:8765/viewer`](http://127.0.0.1:8765/viewer).
 
-The graph connects entities and people with labeled edges. The captures below follow their original timestamp order.
-
-<figure class="architecture-figure architecture-figure-fit">
-  <a href="/assets/viewer/depth.png"><img src="/assets/viewer/depth.png" alt="Decision message focused at depth 2, with the info pane open and connected people, messages, and documents in the graph."></a>
-  <figcaption>Depth 2 shows the focused message’s wider neighborhood.</figcaption>
-</figure>
-
-## Narrow to direct relationships
-
-Reducing the depth to 1 shows only the selected message's immediate relationships.
+The graph connects entities and people with labeled edges.
 
 <figure class="architecture-figure architecture-figure-fit">
-  <a href="/assets/viewer/focused.png"><img src="/assets/viewer/focused.png" alt="Decision message focused at depth 1, with the info pane open and its immediate connections to people, the channel, and related messages."></a>
-  <figcaption>Depth 1 shows the message’s immediate connections.</figcaption>
+  <a href="/assets/viewer/depth.png"><img src="/assets/viewer/depth.png" alt="A graph of nodes and edges"></a>
 </figure>
 
 ## Select a node to view its details
 
-Return to the full graph and select the Decision message to open its info pane. The pane shows its type, content, source link, dates, and connected edges. You can bookmark an entity to protect it from [automatic expiry](/retention.html).
+The right pane shows its type, content, source link, dates, and connected edges. You can bookmark an entity to protect it from [automatic expiry](/retention.html).
 
 <figure class="architecture-figure architecture-figure-fit">
-  <a href="/assets/viewer/selected.png"><img src="/assets/viewer/selected.png" alt="Full Atlas graph with the Decision message selected and its info pane open; all twelve entities remain visible."></a>
-  <figcaption>Selecting a message opens its details without narrowing the graph.</figcaption>
+  <a href="/assets/viewer/focused.png"><img src="/assets/viewer/focused.png" alt="Message focused with the info pane open."></a>
 </figure>
 
-## View the full collection
+## Focus a node to show only its connected nodes
 
-Close the info pane to return to the complete graph without a selected entity.
+<figure class="architecture-figure architecture-figure-fit">
+  <a href="/assets/viewer/selected.png"><img src="/assets/viewer/selected.png" alt="Message focused showing only its connections."></a>
+</figure>
+
+## Increase the depth to show their connected nodes
 
 <figure class="architecture-figure architecture-figure-fit">
   <a href="/assets/viewer/collection.png"><img src="/assets/viewer/collection.png" alt="The full Atlas graph of twelve entities and labeled edges, with no node selected and the info pane closed."></a>
-  <figcaption>The unselected view shows the complete graph.</figcaption>
 </figure>
-
-Search across entities, filter by type, platform, or time range, and sort results to find relevant context. List view shows entities by name, type, platform, and dates.
 
 ## Browse entities in list view
 
-Switch to List to browse entities in rows while keeping the selected entity's details available.
+Switch to List to browse entities in a tabular view.
 
 <figure class="architecture-figure architecture-figure-fit">
   <a href="/assets/viewer/list-view.png"><img src="/assets/viewer/list-view.png" alt="List view showing Atlas entities in rows with name, type, platform, and observed date columns; the Decision message is selected and its details pane is open."></a>
-  <figcaption>List view presents entities in sortable rows alongside the selected entity's details.</figcaption>
 </figure>

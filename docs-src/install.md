@@ -4,12 +4,10 @@ description = "Install AgentGraph with uv, configure optional connectors, backgr
 nav_title = "Install"
 section = "Start"
 order = 20
-summary = "Install the local application, connect the sources you need, and configure optional MCP clients."
+summary = "Install the local application, connect sources and configure MCP."
 output = "install.html"
 source_path = "docs-src/install.md"
 +++
-
-The install flow below uses the default SQLite backend.
 
 ## Prerequisites
 

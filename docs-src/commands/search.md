@@ -19,11 +19,8 @@ agentgraph search [QUERY] [--type TYPE] [--platform PLATFORM] [--filter key=valu
 
 `QUERY` is optional, and every filter applies either way:
 
-- **With `QUERY`** - hybrid full-text and vector retrieval, filters applied as hard
-  predicates, ordered by relevance score. `--limit` defaults to 10.
-- **Without `QUERY`** - no retrieval at all: the filters select the entities and
-  `--order-by` sorts them, newest first. `--min-score` is ignored. `--limit`
-  defaults to 50.
+- **With `QUERY`** - hybrid full-text and vector retrieval, filters applied as hard predicates, ordered by relevance score. `--limit` defaults to 10.
+- **Without `QUERY`** - no retrieval at all: the filters select the entities and `--order-by` sorts them, newest first. `--min-score` is ignored. `--limit` defaults to 50.
 
 ## Use it for
 

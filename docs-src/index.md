@@ -9,16 +9,8 @@ output = "index.html"
 source_path = "docs-src/index.md"
 +++
 
-## A perception layer for coding agents
+## A perception layer for AI agents
 AgentGraph is a local-first, self-hosted CLI and MCP server that turns the sources you choose into a graph of messages, documents, people, feeds, pages, and relationships that your agent can use for reasoning.
-
-<div class="home-actions">
-  <a class="primary" href="/demo.html">Try the demo</a>
-  <a href="/install.html">Install</a>
-  <a href="https://github.com/simonexmachina/agentgraph">GitHub</a>
-</div>
-
-## Connect your sources
 
 AgentGraph observes the sources that you give it access to, so that it can provide your AI agents with the context they need.
 
