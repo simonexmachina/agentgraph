@@ -70,7 +70,7 @@ _COLUMN_FILTERS = {"platform", "platform_entity_id", "entity_type"}
 _FTS_DELETE_CHUNK_SIZE = 500
 _PLATFORM_ENTITY_ID_LOOKUP_CHUNK_SIZE = 900
 _BUSY_TIMEOUT_MS = 5_000
-_SCHEMA_VERSION = 6
+_SCHEMA_VERSION = 7
 
 
 def _now() -> str:
@@ -353,6 +353,10 @@ class SQLiteBackend(StorageBackend):
             "WHERE event_type = 'dwell_threshold'"
         )
         await conn.execute("UPDATE entities SET entity_type = 'Email' WHERE entity_type = 'Thread'")
+        # Messages keep parent links for cascade deletion but expire individually.
+        await conn.execute(
+            "UPDATE entities SET retention_policy = 'observed' WHERE entity_type = 'Message'"
+        )
         await conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_entities_bookmarked ON entities(bookmarked)"
         )
@@ -433,13 +437,14 @@ class SQLiteBackend(StorageBackend):
 
         if "retention_policy" in columns:
             retention_policy = (
-                "CASE WHEN platform = 'rss' AND entity_type = 'Folder' THEN 'persistent' "
+                "CASE WHEN entity_type = 'Message' THEN 'observed' "
+                "WHEN platform = 'rss' AND entity_type = 'Folder' THEN 'persistent' "
                 "ELSE retention_policy END"
             )
         else:
             retention_policy = (
                 "CASE entity_type WHEN 'Person' THEN 'connected' "
-                "WHEN 'Message' THEN 'owned' ELSE 'observed' END"
+                "ELSE 'observed' END"
             )
 
         if "retention_parent_id" in columns:
@@ -456,7 +461,7 @@ class SQLiteBackend(StorageBackend):
         if "observed_at" in columns and "cumulative_observation_duration_ms" in columns:
             observed = (
                 "CASE WHEN entity_type IN "
-                "('Channel', 'Document', 'Email', 'Folder', 'Spreadsheet', 'Task', 'Video') "
+                "('Channel', 'Document', 'Email', 'Folder', 'Message', 'Spreadsheet', 'Task', 'Video') "
                 "AND cumulative_observation_duration_ms > 0 THEN observed_at ELSE NULL END"
             )
         observed = (
@@ -801,15 +806,15 @@ class SQLiteBackend(StorageBackend):
                     raise ValueError(
                         f"Owned entity {e.platform}:{e.platform_entity_id} has no retention parent"
                     )
+            else:
+                parent_ref = e.retention_parent_platform_entity_id
+
+            if parent_ref:
                 parent_id = id_map.get(parent_ref)
                 if parent_id is None:
                     parent_id = await self._resolve_existing_entity_id(conn, e.platform, parent_ref)
                 if parent_id is None:
                     raise ValueError(f"Retention parent {e.platform}:{parent_ref} is not available")
-            elif e.retention_parent_platform_entity_id is not None:
-                raise ValueError(
-                    f"Entity {e.platform}:{e.platform_entity_id} has a parent but is not owned"
-                )
 
             if e.is_stub:
                 new_id = _new_id()
@@ -1979,7 +1984,7 @@ class SQLiteBackend(StorageBackend):
                     AND COALESCE(observed_at, created_at) <= ?
                 """
 
-                # A bookmarked owned child survives parent collection as a detached entity.
+                # A bookmarked parent-linked child survives parent collection detached.
                 await conn.execute(
                     f"""
                     UPDATE entities

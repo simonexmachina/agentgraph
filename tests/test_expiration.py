@@ -239,7 +239,7 @@ async def test_sqlite_expiration_keeps_persistent_entities(
     assert await sqlite_backend.get_entity_by_id("rss-feed") is not None
 
 
-async def test_sqlite_expiration_cascades_owned_messages_and_removes_orphan_people(
+async def test_sqlite_expiration_cascades_parent_linked_messages_and_removes_orphan_people(
     sqlite_backend: SQLiteBackend,
 ) -> None:
     conn = sqlite_backend._conn_or_raise()
@@ -258,7 +258,7 @@ async def test_sqlite_expiration_cascades_owned_messages_and_removes_orphan_peop
         INSERT INTO entities (
             id, entity_type, platform, platform_entity_id, retention_policy,
             retention_parent_id
-        ) VALUES ('message', 'Message', 'slack', 'T/C/1', 'owned', 'channel')
+        ) VALUES ('message', 'Message', 'slack', 'T/C/1', 'observed', 'channel')
         """
     )
     await conn.execute(
@@ -279,7 +279,34 @@ async def test_sqlite_expiration_cascades_owned_messages_and_removes_orphan_peop
     assert await sqlite_backend._fetchval("SELECT count(*) FROM entities") == 0
 
 
-async def test_sqlite_expiration_preserves_bookmarked_owned_child(
+async def test_sqlite_expiration_removes_stale_message_without_expiring_parent(
+    sqlite_backend: SQLiteBackend,
+) -> None:
+    conn = sqlite_backend._conn_or_raise()
+    stale_time = (datetime.now(UTC) - timedelta(days=100)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    await conn.execute(
+        """
+        INSERT INTO entities (
+            id, entity_type, platform, platform_entity_id, retention_policy
+        ) VALUES ('channel', 'Channel', 'slack', 'T/C', 'observed')
+        """
+    )
+    await conn.execute(
+        """
+        INSERT INTO entities (
+            id, entity_type, platform, platform_entity_id, created_at,
+            retention_policy, retention_parent_id
+        ) VALUES ('message', 'Message', 'slack', 'T/C/1', ?, 'observed', 'channel')
+        """,
+        [stale_time],
+    )
+
+    assert await sqlite_backend.expire_entities(90) == 1
+    assert await sqlite_backend.get_entity_by_id("message") is None
+    assert await sqlite_backend.get_entity_by_id("channel") is not None
+
+
+async def test_sqlite_expiration_preserves_bookmarked_parent_linked_message(
     sqlite_backend: SQLiteBackend,
 ) -> None:
     conn = sqlite_backend._conn_or_raise()
@@ -297,16 +324,17 @@ async def test_sqlite_expiration_preserves_bookmarked_owned_child(
         """
         INSERT INTO entities (
             id, entity_type, platform, platform_entity_id, retention_policy,
-            retention_parent_id, bookmarked
-        ) VALUES ('message', 'Message', 'discord', 'channel:message', 'owned', 'channel', 1)
-        """
+            retention_parent_id, bookmarked, created_at
+        ) VALUES ('message', 'Message', 'discord', 'channel:message', 'observed', 'channel', 1, ?)
+        """,
+        [stale_time],
     )
     await conn.execute(
         """
         INSERT INTO entities (
             id, entity_type, platform, platform_entity_id, retention_policy,
             retention_parent_id
-        ) VALUES ('unbookmarked-message', 'Message', 'discord', 'channel:other-message', 'owned', 'channel')
+        ) VALUES ('unbookmarked-message', 'Message', 'discord', 'channel:other-message', 'observed', 'channel')
         """
     )
 
@@ -344,7 +372,7 @@ async def test_sqlite_set_entity_bookmarked_returns_updated_entity(
     assert entity["updated_at"] >= before["updated_at"]
 
 
-async def test_record_observation_only_marks_observable_entities(
+async def test_record_observation_marks_messages_with_observed_policy(
     sqlite_backend: SQLiteBackend,
 ) -> None:
     conn = sqlite_backend._conn_or_raise()
@@ -359,7 +387,7 @@ async def test_record_observation_only_marks_observable_entities(
         INSERT INTO entities (
             id, entity_type, platform, platform_entity_id, retention_policy,
             retention_parent_id
-        ) VALUES ('message', 'Message', 'slack', 'T/C/1', 'owned', 'channel')
+        ) VALUES ('message', 'Message', 'slack', 'T/C/1', 'observed', 'channel')
         """
     )
 
@@ -370,8 +398,8 @@ async def test_record_observation_only_marks_observable_entities(
     message = await sqlite_backend.get_entity_by_id("message")
     assert channel is not None and channel["observed_at"] is not None
     assert channel["cumulative_observation_duration_ms"] == 1000
-    assert message is not None and message["observed_at"] is None
-    assert message["cumulative_observation_duration_ms"] == 0
+    assert message is not None and message["observed_at"] is not None
+    assert message["cumulative_observation_duration_ms"] == 1000
 
 
 async def test_record_observation_once_is_idempotent(

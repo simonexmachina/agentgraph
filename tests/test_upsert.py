@@ -482,7 +482,7 @@ async def test_identical_upsert_preserves_observed_at(sqlite_backend: SQLiteBack
     assert stored["observed_at"] == "2020-01-01T00:00:00Z"
 
 
-async def test_owned_entity_resolves_parent_without_becoming_observed(
+async def test_observed_message_resolves_parent_and_keeps_cascade_link(
     sqlite_backend: SQLiteBackend,
 ) -> None:
     source_time = datetime(2026, 6, 8, 1, 23, 45, tzinfo=UTC)
@@ -498,7 +498,7 @@ async def test_owned_entity_resolves_parent_without_becoming_observed(
         content="hello",
         source_created_at=source_time,
         source_updated_at=source_time,
-        retention_policy="owned",
+        retention_policy="observed",
         retention_parent_platform_entity_id="T/C",
     )
 
@@ -510,7 +510,7 @@ async def test_owned_entity_resolves_parent_without_becoming_observed(
     assert stored_message is not None
     assert stored_channel["observed_at"] is None
     assert stored_message["observed_at"] is None
-    assert stored_message["retention_policy"] == "owned"
+    assert stored_message["retention_policy"] == "observed"
     assert stored_message["retention_parent_id"] == stored_channel["id"]
     assert stored_message["source_created_at"] == "2026-06-08T01:23:45Z"
 

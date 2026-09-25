@@ -45,7 +45,7 @@ When a connector discovers a linked resource without fetching its full contents,
 
 ## Attention and retention
 
-Observation provides an explicit signal about which resources mattered to the user. Observable entities expire after `AGENTGRAPH_RETENTION_DAYS`, which defaults to 90 days, measured from their latest observation or their local insertion time if never observed. Messages are retained until their parent channel or email thread expires, while people remain only while connected to the graph.
+Observation provides an explicit signal about which resources mattered to the user. Observable entities, including Messages, expire after `AGENTGRAPH_RETENTION_DAYS`, which defaults to 90 days, measured from their latest observation or their local insertion time if never observed. Messages can also be deleted when their parent channel or thread expires, while people remain only while connected to the graph.
 
 Entities can be bookmarked to protect them from automatic expiration.
 

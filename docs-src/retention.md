@@ -15,8 +15,8 @@ Entities use one of four policies:
 
 | Policy | Entity types | Collection rule |
 | --- | --- | --- |
-| Observed | `Channel`, `Document`, `Email`, `Folder`, `Spreadsheet`, `Task`, `Video` | Delete when `observed_at` (or `created_at` if never observed) is outside the retention window. |
-| Owned | `Message` and Gmail attachment `Document` entities | Delete with the parent Channel or Email. |
+| Observed | `Channel`, `Document`, `Email`, `Folder`, `Message`, `Spreadsheet`, `Task`, `Video` | Delete when `observed_at` (or `created_at` if never observed) is outside the retention window. |
+| Owned | Gmail attachment `Document` entities | Delete with the parent Email. |
 | Connected | `Person` | Delete when the Person has no incoming or outgoing edges. |
 | Persistent | Configured RSS feed `Folder` entities | Never delete automatically. |
 
@@ -35,10 +35,9 @@ Bookmarking an entity protects it from being removed when it expires. A bookmark
 The server runs expiration daily and applies the following rules:
 
 1. Bookmarked entities are never deleted
-1. Delete observed-policy entities whose effective retention timestamp is outside the window.
-2. Cascade deletion to their owned children.
-3. Detach bookmarked owned children before deleting an expired parent.
-4. Delete owned entities left without a parent, including detached children after they are unbookmarked.
+2. Detach bookmarked children before deleting an expired parent.
+3. Delete observed-policy entities whose effective retention timestamp is outside the window; parent-linked Messages also cascade when their parent expires.
+4. Delete owned entities left without a parent, including detached attachments after they are unbookmarked.
 5. Delete connected-policy Persons that have no edges.
 
 The retention period is controlled using `AGENTGRAPH_RETENTION_DAYS`, which defaults to 90 days.

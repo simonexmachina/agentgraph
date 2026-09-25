@@ -660,3 +660,42 @@ async def test_version_two_database_gets_timestamp_default_repair(tmp_path: Path
         assert inserted["created_at"] is not None
     finally:
         await migrated.close()
+
+
+async def test_version_six_migrates_messages_to_observed_policy(tmp_path: Path) -> None:
+    db_path = tmp_path / "message-retention-migration.db"
+    backend = SQLiteBackend(str(db_path))
+    await backend.initialize()
+    observed_at = "2026-08-01T12:00:00Z"
+    await backend._execute(
+        """
+        INSERT INTO entities (id, entity_type, platform, platform_entity_id)
+        VALUES ('channel', 'Channel', 'slack', 'T/C')
+        """
+    )
+    await backend._execute(
+        """
+        INSERT INTO entities (
+            id, entity_type, platform, platform_entity_id, observed_at,
+            cumulative_observation_duration_ms, retention_policy, retention_parent_id
+        ) VALUES ('message', 'Message', 'slack', 'T/C/1', ?, 1000, 'owned', 'channel')
+        """,
+        [observed_at],
+    )
+    await backend.close()
+
+    conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA user_version=6")
+    conn.commit()
+    conn.close()
+
+    migrated = SQLiteBackend(str(db_path))
+    await migrated.initialize()
+    try:
+        message = await migrated.get_entity_by_id("message")
+        assert message is not None
+        assert message["retention_policy"] == "observed"
+        assert message["retention_parent_id"] == "channel"
+        assert message["observed_at"] == observed_at
+    finally:
+        await migrated.close()

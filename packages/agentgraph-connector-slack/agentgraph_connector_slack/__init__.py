@@ -495,7 +495,7 @@ async def _fetch_thread_replies(
             source_created_at=_ts_to_dt(ts),
             source_updated_at=_edited_at(reply),
             metadata=reply_meta,
-            retention_policy="owned",
+            retention_policy="observed",
             retention_parent_platform_entity_id=channel_ref,
         ))
 
@@ -625,7 +625,7 @@ async def _fetch_channel(channel_ref: str, oldest: str | None = None, account_id
                 source_created_at=_ts_to_dt(ts),
                 source_updated_at=_edited_at(msg),
                 metadata=msg_meta,
-                retention_policy="owned",
+                retention_policy="observed",
                 retention_parent_platform_entity_id=channel_ref,
             )
             entities.append(msg_entity)

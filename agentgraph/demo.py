@@ -76,7 +76,7 @@ def build_demo_batch() -> EntityBatch:
                 **fixture_metadata,
                 "web_url": "https://app.slack.com/client/TDEMO/CATLAS/thread-1",
             },
-            retention_policy="owned",
+            retention_policy="observed",
             retention_parent_platform_entity_id=channel_id,
         ),
         EntityRecord(
@@ -93,7 +93,7 @@ def build_demo_batch() -> EntityBatch:
                 **fixture_metadata,
                 "web_url": "https://app.slack.com/client/TDEMO/CATLAS/thread-1-reply-1",
             },
-            retention_policy="owned",
+            retention_policy="observed",
             retention_parent_platform_entity_id=channel_id,
         ),
         EntityRecord(
@@ -110,7 +110,7 @@ def build_demo_batch() -> EntityBatch:
                 **fixture_metadata,
                 "web_url": "https://app.slack.com/client/TDEMO/CATLAS/thread-1-reply-2",
             },
-            retention_policy="owned",
+            retention_policy="observed",
             retention_parent_platform_entity_id=channel_id,
         ),
         EntityRecord(

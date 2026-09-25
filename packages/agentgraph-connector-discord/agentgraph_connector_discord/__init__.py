@@ -444,7 +444,7 @@ async def _fetch_thread_messages(
             source_updated_at=_parse_discord_time(msg.get("edited_timestamp"))
             or _snowflake_to_dt(msg_id),
             metadata=meta,
-            retention_policy="owned",
+            retention_policy="observed",
             retention_parent_platform_entity_id=parent_channel_id,
         ))
 
@@ -592,7 +592,7 @@ async def _fetch_channel(
                 source_updated_at=_parse_discord_time(msg.get("edited_timestamp"))
                 or _snowflake_to_dt(msg_id),
                 metadata=meta,
-                retention_policy="owned",
+                retention_policy="observed",
                 retention_parent_platform_entity_id=channel_id,
             ))
 
