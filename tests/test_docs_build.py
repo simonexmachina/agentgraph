@@ -64,6 +64,26 @@ def test_render_markdown_supports_tables() -> None:
     assert "<tbody><tr><td>Web</td><td>Observe, fetch</td></tr>" in rendered
 
 
+def test_start_navigation_places_demo_before_how_it_works() -> None:
+    pages = build_docs.load_pages()
+    start_pages = [page for page in pages if page.meta.section == "Start"]
+
+    assert [page.meta.nav_title for page in start_pages] == [
+        "Overview",
+        "Install",
+        "Demo",
+        "How it works",
+        "Connectors",
+    ]
+
+    demo = start_pages[2]
+    nav = build_docs.build_global_nav(pages, demo)
+    assert nav.index("/demo.html") < nav.index("/how-it-works.html")
+    pager = build_docs.build_prev_next(pages, pages.index(demo))
+    assert 'class="page-nav-prev" href="/install.html"' in pager
+    assert 'class="page-nav-next" href="/how-it-works.html"' in pager
+
+
 def test_build_writes_docs_site(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     output_dir = tmp_path / "docs"
     monkeypatch.setattr(build_docs, "DOCS_OUT", output_dir)
