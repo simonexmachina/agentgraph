@@ -154,8 +154,8 @@ After=network.target
 ExecStart=$(which agentgraph) serve
 Restart=on-failure
 RestartSec=5
-StandardOutput=append:/tmp/agentgraph-serve.log
-StandardError=append:/tmp/agentgraph-serve.log
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=default.target
