@@ -8,6 +8,7 @@ summary = "Connectors translate source-specific resources into AgentGraph entiti
 toc = false
 output = "connectors.html"
 source_path = "docs-src/connectors.md"
+aliases = ["rss.html"]
 +++
 
 AgentGraph's bundled connectors are integrations for common services, and examples of an open connector pattern. Each connector owns its URLs, authentication, fetch logic, refresh behavior, and source metadata while returning the same graph-shaped output to core AgentGraph.
