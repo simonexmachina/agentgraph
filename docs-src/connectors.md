@@ -5,6 +5,7 @@ nav_title = "Connectors"
 section = "Start"
 order = 50
 summary = "Connectors translate source-specific resources into AgentGraph entities, people, edges, observations, and searchable content."
+toc = false
 output = "connectors.html"
 source_path = "docs-src/connectors.md"
 +++
