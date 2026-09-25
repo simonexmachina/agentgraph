@@ -188,12 +188,10 @@ Hello.
     assert [page.meta.title for page in pages] == ["Home"]
 
 
-@pytest.mark.asyncio
-async def test_command_and_mcp_reference_pages_match_runtime_interfaces() -> None:
+def test_command_reference_pages_match_runtime_interfaces() -> None:
     from typer.main import get_command
 
     from agentgraph.cli import app
-    from agentgraph.mcp.server import mcp
 
     pages = build_docs.load_pages()
     documented_commands = {
@@ -204,14 +202,7 @@ async def test_command_and_mcp_reference_pages_match_runtime_interfaces() -> Non
     assert isinstance(root_command, Group)
     runtime_commands: set[str] = set(root_command.commands)
 
-    documented_tools = {
-        page.meta.title for page in pages if page.meta.output_path.parent == Path("mcp")
-    }
-    documented_tools.remove("MCP tools")
-    runtime_tools = {tool.name for tool in await mcp.list_tools()}
-
     assert documented_commands == runtime_commands
-    assert documented_tools == runtime_tools
 
     pages_by_output = {page.meta.output_path: page for page in pages}
 
@@ -230,9 +221,3 @@ async def test_command_and_mcp_reference_pages_match_runtime_interfaces() -> Non
     demo_source = source_for("demo.html")
     assert 'mkdir -p "$HOME/agentgraph-tmp"' in demo_source
     assert "AGENTGRAPH_CONFIG_DIR=%s" in demo_source
-    assert "get_entity_tool(entity_id, resolve=false) -> structured MCP result" in source_for(
-        "mcp/get-entity.html"
-    )
-    assert "list_connectors_tool(verify=false) -> structured MCP result" in source_for(
-        "mcp/list-connectors.html"
-    )

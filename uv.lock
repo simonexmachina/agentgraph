@@ -22,7 +22,7 @@ members = [
 
 [[package]]
 name = "agentgraph-connector-discord"
-version = "0.6.1"
+version = "0.6.2"
 source = { editable = "packages/agentgraph-connector-discord" }
 dependencies = [
     { name = "agentgraph-server" },
@@ -56,7 +56,7 @@ requires-dist = [
 
 [[package]]
 name = "agentgraph-connector-rss"
-version = "0.7.0"
+version = "0.7.1"
 source = { editable = "packages/agentgraph-connector-rss" }
 dependencies = [
     { name = "agentgraph-connector-web" },
@@ -79,7 +79,7 @@ requires-dist = [
 
 [[package]]
 name = "agentgraph-connector-slack"
-version = "0.6.1"
+version = "0.6.2"
 source = { editable = "packages/agentgraph-connector-slack" }
 dependencies = [
     { name = "agentgraph-server" },
@@ -94,7 +94,7 @@ requires-dist = [
 
 [[package]]
 name = "agentgraph-connector-web"
-version = "0.7.0"
+version = "0.7.1"
 source = { editable = "packages/agentgraph-connector-web" }
 dependencies = [
     { name = "agentgraph-server" },
@@ -113,7 +113,7 @@ requires-dist = [
 
 [[package]]
 name = "agentgraph-server"
-version = "0.9.0"
+version = "0.9.1"
 source = { editable = "." }
 dependencies = [
     { name = "agentgraph-connector-web" },

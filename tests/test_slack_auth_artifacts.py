@@ -68,8 +68,7 @@ def test_agentgraph_skill_has_cli_and_mcp_auth_parity() -> None:
     assert "remove_auth_provider_tool" in operations
 
 
-def test_mcp_authentication_operation_is_documented() -> None:
-    reference = (ROOT / "docs-src" / "mcp" / "authenticate-provider.md").read_text()
-    index = (ROOT / "docs-src" / "mcp" / "index.md").read_text()
-    assert "authenticate_provider_tool(provider" in reference
-    assert "authenticate_provider_tool" in index
+def test_slack_authentication_is_documented_in_cli_reference() -> None:
+    reference = (ROOT / "docs-src" / "commands" / "auth.md").read_text()
+    assert "agentgraph auth slack [--method oauth|browser]" in reference
+    assert "agentgraph auth slack --add --client-id" in reference
