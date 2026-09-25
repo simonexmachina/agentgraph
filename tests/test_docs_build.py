@@ -98,10 +98,10 @@ def test_viewer_page_builds_with_screenshots_and_demo_link(
     index_html = (output_dir / "index.html").read_text(encoding="utf-8")
     assert '<a class="nav-link" href="viewer.html">Viewer</a>' in index_html
     assert 'href="viewer.html">viewer overview</a>' in demo_html
-    assert "Explore relationships" in viewer_html
-    assert "Browse and filter" in viewer_html
-    assert "Focus an entity to view its details" in viewer_html
-    for name in ("graph", "list", "details"):
+    assert "Select a node to view its details" in viewer_html
+    assert "Focus on the selected entity" in viewer_html
+    assert "Increase the depth" in viewer_html
+    for name in ("collection", "selected", "focused", "depth"):
         image_path = output_dir / "assets" / "viewer" / f"{name}.png"
         assert image_path.is_file()
         assert image_path.stat().st_size > 10_000
