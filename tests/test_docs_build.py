@@ -51,6 +51,32 @@ def test_render_inline_preserves_link_query_separator() -> None:
     assert "&amp;amp;" not in rendered
 
 
+def test_on_page_nav_renders_inline_code_without_backticks() -> None:
+    page = build_docs.Page(
+        meta=build_docs.PageMeta(
+            source_path=Path("configuration.md"),
+            output_path=Path("configuration.html"),
+            title="Configuration",
+            description="Configuration settings.",
+            nav_title="Configuration",
+            nav_hidden=False,
+            section="Configuration",
+            order=10,
+            summary="",
+            aliases=(),
+        ),
+        body="",
+        headings=(build_docs.Heading(3, "`AGENTGRAPH_CONFIG_DIR`", "agentgraph-config-dir"),),
+    )
+
+    rendered = build_docs.build_on_page_nav(page)
+
+    assert rendered == (
+        '<a class="toc-l3" href="#agentgraph-config-dir"><code>AGENTGRAPH_CONFIG_DIR</code></a>'
+    )
+    assert "`" not in rendered
+
+
 def test_render_markdown_supports_tables() -> None:
     rendered, _ = build_docs.render_markdown(
         """| Connector | Context paths |

@@ -317,7 +317,7 @@ def build_on_page_nav(page: Page) -> str:
     if not items:
         return ""
     return "".join(
-        f'<a class="toc-l{heading.level}" href="#{heading.slug}">{html.escape(heading.text)}</a>'
+        f'<a class="toc-l{heading.level}" href="#{heading.slug}">{render_inline(heading.text)}</a>'
         for heading in items
     )
 
