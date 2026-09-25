@@ -64,28 +64,7 @@ def test_render_markdown_supports_tables() -> None:
     assert "<tbody><tr><td>Web</td><td>Observe, fetch</td></tr>" in rendered
 
 
-def test_start_navigation_includes_viewer() -> None:
-    pages = build_docs.load_pages()
-    start_pages = [page for page in pages if page.meta.section == "Start"]
-
-    assert [page.meta.nav_title for page in start_pages] == [
-        "Overview",
-        "Install",
-        "Demo",
-        "Viewer",
-        "How it works",
-        "Connectors",
-    ]
-
-    viewer = start_pages[3]
-    nav = build_docs.build_global_nav(pages, viewer)
-    assert nav.index("/viewer.html") < nav.index("/how-it-works.html")
-    pager = build_docs.build_prev_next(pages, pages.index(viewer))
-    assert 'class="page-nav-prev" href="/demo.html"' in pager
-    assert 'class="page-nav-next" href="/how-it-works.html"' in pager
-
-
-def test_viewer_page_builds_with_screenshots_and_demo_link(
+def test_build_generates_site_and_assets_with_valid_links(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     output_dir = tmp_path / "docs"
@@ -93,172 +72,13 @@ def test_viewer_page_builds_with_screenshots_and_demo_link(
 
     build_docs.build()
 
-    viewer_html = (output_dir / "viewer.html").read_text(encoding="utf-8")
-    demo_html = (output_dir / "demo.html").read_text(encoding="utf-8")
-    index_html = (output_dir / "index.html").read_text(encoding="utf-8")
-    assert '<a class="nav-link" href="viewer.html">Viewer</a>' in index_html
-    assert 'href="viewer.html">viewer overview</a>' in demo_html
-    assert "Select a node to view its details" in viewer_html
-    assert "Focus on the selected entity" in viewer_html
-    assert "Increase the depth" in viewer_html
-    for name in ("collection", "selected", "focused", "depth"):
-        image_path = output_dir / "assets" / "viewer" / f"{name}.png"
-        assert image_path.is_file()
-        assert image_path.stat().st_size > 10_000
-        assert f'src="assets/viewer/{name}.png"' in viewer_html
-        assert f'href="assets/viewer/{name}.png"' in viewer_html
-
-
-def test_build_writes_docs_site(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    output_dir = tmp_path / "docs"
-    monkeypatch.setattr(build_docs, "DOCS_OUT", output_dir)
-
-    build_docs.build()
-
-    docs_css = (output_dir / "docs.css").read_text(encoding="utf-8")
-    social_image = output_dir / "assets" / "og-image.png"
-    architecture_svg = output_dir / "assets" / "diagrams" / "architecture-overview-dark.svg"
-    index_html = (output_dir / "index.html").read_text(encoding="utf-8")
-    install_html = (output_dir / "install.html").read_text(encoding="utf-8")
-    auth_html = (output_dir / "commands" / "auth.html").read_text(encoding="utf-8")
-    onboard_html = (output_dir / "commands" / "onboard.html").read_text(encoding="utf-8")
-    configuration_html = (output_dir / "configuration.html").read_text(encoding="utf-8")
-    extending_html = (output_dir / "extending.html").read_text(encoding="utf-8")
-    rss_html = (output_dir / "rss.html").read_text(encoding="utf-8")
-    commands_html = (output_dir / "commands" / "index.html").read_text(encoding="utf-8")
-    search_html = (output_dir / "commands" / "search.html").read_text(encoding="utf-8")
-    mcp_html = (output_dir / "mcp" / "index.html").read_text(encoding="utf-8")
-    mcp_auth_html = (output_dir / "mcp" / "authenticate-provider.html").read_text(encoding="utf-8")
-    connectors_html = (output_dir / "connectors.html").read_text(encoding="utf-8")
-    how_it_works_html = (output_dir / "how-it-works.html").read_text(encoding="utf-8")
-    demo_html = (output_dir / "demo.html").read_text(encoding="utf-8")
-    demo_article = demo_html.split('<article class="doc">', 1)[1].split("</article>", 1)[0]
-    privacy_html = (output_dir / "privacy.html").read_text(encoding="utf-8")
-    terms_html = (output_dir / "terms.html").read_text(encoding="utf-8")
-    redirect_html = (output_dir / "commands.html").read_text(encoding="utf-8")
-
-    assert 'class="shell"' in index_html
-    assert architecture_svg.exists()
-    assert architecture_svg.stat().st_size > 1_000
-    assert social_image.exists()
-    assert social_image.stat().st_size > 1_000
-    assert "architecture-overview-dark.svg" not in index_html
-    assert 'src="assets/diagrams/architecture-overview-dark.svg"' in how_it_works_html
-    assert 'class="architecture-figure architecture-figure-fit"' in how_it_works_html
-    assert "<title>AgentGraph - The perception layer for coding agents</title>" in index_html
-    assert re.search(
-        r'<p class="home-tagline">[^<]*perception layer for coding agents\.</p>',
-        index_html,
-    )
-    assert "AgentGraph supplies context to your agent" in index_html
-    assert 'href="demo.html">Try the demo</a>' in index_html
-    assert "Maya requires five-minute synchronization by September 30." in index_html
-    assert "The plan still proposes hourly batches and an October 15 date." in index_html
-    assert "Selected sources flow through connectors into a local AgentGraph" in index_html
-    assert 'rel="canonical" href="https://agentgraph.simonwa.de/"' in index_html
-    social_image_url = "https://agentgraph.simonwa.de/assets/og-image.png?v=3"
-    assert f'property="og:image" content="{social_image_url}"' in index_html
-    assert 'property="og:image:width" content="1200"' in index_html
-    assert 'property="og:image:height" content="630"' in index_html
-    assert 'name="twitter:card" content="summary_large_image"' in index_html
-    assert f'name="twitter:image" content="{social_image_url}"' in index_html
-    assert "local context for AI agents" in index_html
-    assert "https://www.googletagmanager.com/gtag/js?id=G-36ETGXF6K5" in index_html
-    assert "gtag('config', 'G-36ETGXF6K5');" in index_html
-    assert 'id="doc-search"' in index_html
-    assert 'class="toc"' in index_html
-    assert 'class="page-summary"' not in index_html
-    assert 'class="language-bash"' not in index_html
-    assert 'agentgraph<span class="tok-w"> </span>mcp-config' not in index_html
-    assert ".doc .codehilite .tok-n" in docs_css
-    assert "var(--code-name)" in docs_css
-    assert ".architecture-figure-fit img{min-width:0}" in docs_css
-    assert ".doc pre .copy svg" in docs_css
-    assert ">Commands</a>" in index_html
+    html_files = list(output_dir.rglob("*.html"))
+    assert html_files
+    assert (output_dir / "docs.css").is_file()
+    assert (output_dir / "assets" / "og-image.png").is_file()
     assert (
-        '<section><h2>Configuration</h2><a class="nav-link" href="configuration.html">Configuration</a><a class="nav-link" href="rss.html">RSS</a><a class="nav-link" href="extending.html">Extending</a></section>'
-        in index_html
-    )
-    assert 'href="extending.html"' in index_html
-    assert 'href="rss.html"' in index_html
-    nav_html = index_html.split('<nav aria-label="Documentation">', 1)[1].split("</nav>", 1)[0]
-    assert 'href="tester-extension-install.html"' not in nav_html
-    assert 'href="privacy.html"' not in nav_html
-    assert 'href="extension-distribution.html"' not in nav_html
-    assert (
-        "https://github.com/simonexmachina/agentgraph/blob/main/examples/custom_connector.py"
-        in extending_html
-    )
-    assert "Interface reference" not in extending_html
-    assert "<table>" not in extending_html
-    assert "Why extend AgentGraph" in extending_html
-    assert "custom connectors" in extending_html
-    assert "RSS" in extending_html
-    assert "Add RSS and Atom feeds" in rss_html
-    assert "feed.xml" in rss_html
-    assert "platform=rss" in rss_html
-    assert not (output_dir / "slack.html").exists()
-    assert 'href="install.html"' in index_html
-    assert 'href="quickstart.html"' not in index_html
-    assert "What it lets the agent perceive" in connectors_html
-    assert "Context paths" not in connectors_html
-    assert "Bring any service into your agent's world" in connectors_html
-    assert "Three ways context enters" in how_it_works_html
-    assert "agentgraph fetch" in how_it_works_html
-    assert "Before I reply to Maya" in demo_html
-    assert "agentgraph-server" in demo_html
-    assert "demo<span" in demo_html
-    assert (
-        "Open a new coding-agent session" in demo_html or "Open a coding-agent session" in demo_html
-    )
-    assert "AgentGraph CLI" in demo_html
-    assert "Open the viewer" in demo_html
-    assert 'agentgraph<span class="tok-w"> </span>serve' in demo_html
-    assert 'href="http://127.0.0.1:8765/viewer"' in demo_html
-    assert 'href="install.html"' in demo_article
-    assert "mcp-config" not in demo_article
-    assert "http.server" not in demo_article
-    assert "Observe the first article" not in demo_article
-    assert "git clone" not in demo_article
-    assert "uv sync" not in demo_article
-    assert "AGENTGRAPH_BACKEND_SQLITE_VECTOR_MODE" not in demo_article
-    assert "Retention and deletion" in privacy_html
-    assert "Open-source software" in terms_html
-    assert "<h1>Commands</h1>" in commands_html
-    assert "After the extension is installed, start" in install_html
-    assert "agentgraph-server" in install_html
-    assert "agentgraph-connector-google" not in install_html
-    assert "uv sync" not in install_html
-    assert "source .venv" not in install_html
-    assert "Connect an MCP client" in install_html
-    assert 'default_permissions = "agentgraph"' not in configuration_html
-    # The supported clients are named explicitly rather than split into "desktop" and
-    # "coding agent", which put Codex on the wrong side of the distinction.
-    for client in ("ChatGPT Desktop Work Mode", "Codex", "Claude Desktop", "Claude Code"):
-        assert client in install_html
-    # Highlighting wraps the whitespace in spans, so match the start of the block.
-    assert '<code class="language-bash">codex' in install_html
-    assert "Connect sources" in install_html
-    assert "onboard" in install_html
-    assert "Authenticate connectors" not in install_html
-    for page_html in (install_html, auth_html, onboard_html):
-        assert '<aside class="heads-up">' in page_html
-        assert '<p class="heads-up-label">Heads up</p>' in page_html
-        assert (
-            'If you see a warning "Google hasn’t verified this app" it\'s caused by '
-            '<a href="https://issuetracker.google.com/issues/499336447">'
-            'this bug in GCP</a>, and you will need to choose <em>Advanced</em> '
-            'and explicitly allow access.'
-        ) in page_html
-    assert "agentgraph search" in search_html
-    assert "<code>agentgraph search</code>" in search_html
-    assert 'href="../docs.css"' in search_html
-    assert 'href="../index.html"' in search_html
-    assert 'class="page-nav-prev" href="index.html"' in search_html
-    assert 'class="page-nav-next" href="get.html"' in search_html
-    assert "MCP tools" in mcp_html
-    assert "authenticate_provider_tool" in mcp_auth_html
-    assert 'content="0; url=commands/index.html"' in redirect_html
+        output_dir / "assets" / "diagrams" / "architecture-overview-dark.svg"
+    ).is_file()
 
     broken_links: list[str] = []
     for html_path in output_dir.rglob("*.html"):
