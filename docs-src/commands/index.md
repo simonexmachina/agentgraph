@@ -1,6 +1,6 @@
 +++
 title = "Commands"
-description = "Command reference for the AgentGraph CLI and MCP workflows."
+description = "Command reference for the AgentGraph CLI, including MCP client setup."
 nav_title = "Commands"
 section = "Reference"
 order = 10
@@ -47,7 +47,3 @@ aliases = ["commands.html"]
 
 - [`unify-persons`](/commands/unify-persons.html) - merge confirmed duplicate Person entities.
 - [`demo`](/commands/demo.html) - seed the self-contained fictional demonstration graph.
-
-## Related
-
-- [MCP tools](/mcp/) for the tool pages exposed to agent clients.

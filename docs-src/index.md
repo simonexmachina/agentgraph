@@ -57,4 +57,4 @@ An MCP client you connect can read content from the local graph and is governed 
 
 - [Install](/install.html) to connect sources and an optional MCP client.
 - [How it works](/how-it-works.html) for observation, fetch, refresh, and the graph model.
-- [CLI reference](/commands/) and [MCP tools](/mcp/) for the complete interfaces.
+- [CLI reference](/commands/) for command details. MCP clients discover the tools exposed by the server directly.
