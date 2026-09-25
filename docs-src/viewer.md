@@ -46,3 +46,12 @@ Close the info pane to return to the complete graph without a selected entity.
 </figure>
 
 Search across entities, filter by type, platform, or time range, and sort results to find relevant context. List view shows entities by name, type, platform, and dates.
+
+## Browse entities in list view
+
+Switch to List to browse entities in rows while keeping the selected entity's details available.
+
+<figure class="architecture-figure architecture-figure-fit">
+  <a href="/assets/viewer/list-view.png"><img src="/assets/viewer/list-view.png" alt="List view showing Atlas entities in rows with name, type, platform, and observed date columns; the Decision message is selected and its details pane is open."></a>
+  <figcaption>List view presents entities in sortable rows alongside the selected entity's details.</figcaption>
+</figure>
