@@ -75,7 +75,7 @@ From `~/agentgraph-tmp`, start the local server in a separate terminal:
 agentgraph serve
 ```
 
-Then open [http://127.0.0.1:8765/viewer](http://127.0.0.1:8765/viewer). The viewer shows the same seeded Atlas entities and relationships that the coding agent investigated.
+Then open [http://127.0.0.1:8765/viewer](http://127.0.0.1:8765/viewer). The viewer shows the same seeded Atlas entities and relationships that the coding agent investigated. See the [viewer overview](/viewer.html) for a visual tour.
 
 ## 5. Cleanup
 

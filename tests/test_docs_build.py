@@ -64,7 +64,7 @@ def test_render_markdown_supports_tables() -> None:
     assert "<tbody><tr><td>Web</td><td>Observe, fetch</td></tr>" in rendered
 
 
-def test_start_navigation_places_demo_before_how_it_works() -> None:
+def test_start_navigation_includes_viewer() -> None:
     pages = build_docs.load_pages()
     start_pages = [page for page in pages if page.meta.section == "Start"]
 
@@ -72,16 +72,41 @@ def test_start_navigation_places_demo_before_how_it_works() -> None:
         "Overview",
         "Install",
         "Demo",
+        "Viewer",
         "How it works",
         "Connectors",
     ]
 
-    demo = start_pages[2]
-    nav = build_docs.build_global_nav(pages, demo)
-    assert nav.index("/demo.html") < nav.index("/how-it-works.html")
-    pager = build_docs.build_prev_next(pages, pages.index(demo))
-    assert 'class="page-nav-prev" href="/install.html"' in pager
+    viewer = start_pages[3]
+    nav = build_docs.build_global_nav(pages, viewer)
+    assert nav.index("/viewer.html") < nav.index("/how-it-works.html")
+    pager = build_docs.build_prev_next(pages, pages.index(viewer))
+    assert 'class="page-nav-prev" href="/demo.html"' in pager
     assert 'class="page-nav-next" href="/how-it-works.html"' in pager
+
+
+def test_viewer_page_builds_with_screenshots_and_demo_link(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output_dir = tmp_path / "docs"
+    monkeypatch.setattr(build_docs, "DOCS_OUT", output_dir)
+
+    build_docs.build()
+
+    viewer_html = (output_dir / "viewer.html").read_text(encoding="utf-8")
+    demo_html = (output_dir / "demo.html").read_text(encoding="utf-8")
+    index_html = (output_dir / "index.html").read_text(encoding="utf-8")
+    assert '<a class="nav-link" href="viewer.html">Viewer</a>' in index_html
+    assert 'href="viewer.html">viewer overview</a>' in demo_html
+    assert "Explore relationships" in viewer_html
+    assert "Browse and filter" in viewer_html
+    assert "Inspect an entity" in viewer_html
+    for name in ("graph", "list", "details"):
+        image_path = output_dir / "assets" / "viewer" / f"{name}.png"
+        assert image_path.is_file()
+        assert image_path.stat().st_size > 10_000
+        assert f'src="assets/viewer/{name}.png"' in viewer_html
+        assert f'href="assets/viewer/{name}.png"' in viewer_html
 
 
 def test_build_writes_docs_site(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
