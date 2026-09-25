@@ -45,6 +45,7 @@ class PageMeta:
     order: int
     summary: str
     aliases: tuple[str, ...]
+    toc_enabled: bool = True
 
 
 @dataclass(frozen=True)
@@ -86,6 +87,7 @@ def parse_frontmatter(text: str) -> tuple[PageMeta, str]:
             order=int(data["order"]),
             summary=str(data["summary"]),
             aliases=aliases,
+            toc_enabled=bool(data.get("toc", True)),
         ),
         body.strip() + "\n",
     )
@@ -388,7 +390,7 @@ def build_page(page: Page, pages: list[Page], index: int, nav_html: str) -> str:
     )
     canonical_path = page_permalink(page.meta)
     canonical_url = f"{SITE_ROOT}{canonical_path}"
-    toc_html = build_on_page_nav(page)
+    toc_html = build_on_page_nav(page) if page.meta.toc_enabled else ""
     article_title = "" if body_class == "home" else f"          <h1>{title}</h1>\n"
     stylesheet_href = relative_url(page.meta.output_path, "/docs.css")
     home_href = relative_url(page.meta.output_path, "/")
@@ -460,14 +462,14 @@ def build_page(page: Page, pages: list[Page], index: int, nav_html: str) -> str:
           <a class="edit" href="{source_href}">Edit page</a>
         </div>
       </header>
-      <div class="doc-grid">
+      <div class="doc-grid{' no-toc' if not toc_html else ''}">
         <article class="doc">
 {article_title}\
 {f'          <p class="page-summary">{render_inline(page.meta.summary)}</p>\n' if page.meta.summary.strip() else ""}\
 {body_html}
 {pager_html}
         </article>
-        <nav class="toc" aria-label="On this page"><h2>On this page</h2>{toc_html}</nav>
+        {f'<nav class="toc" aria-label="On this page"><h2>On this page</h2>{toc_html}</nav>' if toc_html else ''}
       </div>
     </main>
   </div>

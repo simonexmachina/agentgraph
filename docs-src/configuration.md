@@ -7,6 +7,7 @@ order = 10
 summary = "AgentGraph reads settings from environment variables and from `.env` files in the config directory and the local directory."
 output = "configuration.html"
 source_path = "docs-src/configuration.md"
+toc = false
 +++
 
 ## Config directory

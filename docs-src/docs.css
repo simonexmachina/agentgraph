@@ -141,6 +141,7 @@ main{min-width:0;padding:32px clamp(20px,4.5vw,56px) 80px;max-width:1180px;margi
 .edit{color:var(--muted)}
 .doc-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:48px;margin-top:24px}
 @media(min-width:1180px){.doc-grid{grid-template-columns:minmax(0,72ch) 220px;justify-content:start}}
+.doc-grid.no-toc{grid-template-columns:minmax(0,1fr)}
 .doc{min-width:0;max-width:72ch;overflow-wrap:break-word}
 .home main{max-width:1320px}
 .home .doc-grid{grid-template-columns:minmax(0,1fr)}

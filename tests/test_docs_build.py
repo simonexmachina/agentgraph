@@ -105,6 +105,9 @@ def test_build_generates_site_and_assets_with_valid_links(
     assert (
         output_dir / "assets" / "diagrams" / "architecture-overview-dark.svg"
     ).is_file()
+    configuration_page = (output_dir / "configuration.html").read_text(encoding="utf-8")
+    assert 'class="doc-grid no-toc"' in configuration_page
+    assert 'aria-label="On this page"' not in configuration_page
 
     broken_links: list[str] = []
     for html_path in output_dir.rglob("*.html"):
