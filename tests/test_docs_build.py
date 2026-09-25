@@ -100,7 +100,7 @@ def test_viewer_page_builds_with_screenshots_and_demo_link(
     assert 'href="viewer.html">viewer overview</a>' in demo_html
     assert "Explore relationships" in viewer_html
     assert "Browse and filter" in viewer_html
-    assert "Inspect an entity" in viewer_html
+    assert "Focus an entity to view its details" in viewer_html
     for name in ("graph", "list", "details"):
         image_path = output_dir / "assets" / "viewer" / f"{name}.png"
         assert image_path.is_file()
