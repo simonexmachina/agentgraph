@@ -9,7 +9,7 @@ output = "how-it-works.html"
 source_path = "docs-src/how-it-works.md"
 +++
 
-AgentGraph is infrastructure for the agent you already use. It provides a CLI and an MCP server so your agents have a searchable, traversable representation of your digital world – messages, documents, people, feeds, and web pages.
+AgentGraph provides a CLI and an MCP server so your agents have a searchable, traversable representation of your digital world – messages, documents, people, feeds, and web pages.
 
 <figure class="architecture-figure architecture-figure-fit" tabindex="0">
   <img src="/assets/diagrams/architecture-overview-dark.svg" alt="Observe, Fetch, and Refresh converge on connector packages that read selected services and write to a local graph. Agents access the graph through the CLI or MCP, while Expiry applies the retention model.">
