@@ -45,7 +45,7 @@ You can extend AgentGraph by adding connectors for other online services and API
 
 Indexed content is stored in SQLite on your machine. Source API calls run from your machine under your credentials. The project does not operate a hosted graph service or receive indexed content through a project-controlled backend.
 
-An MCP client you connect can read content from the local graph and is governed by that client's data practices. Read the [Privacy Policy](/privacy.html), [Terms of Service](/terms.html), and [retention model](/retention.html).
+An MCP client can read content from the local graph and is governed by that client's data practices. Read the [Privacy Policy](/privacy.html), [Terms of Service](/terms.html), and [retention model](/retention.html).
 
 ## Explore the docs
 
