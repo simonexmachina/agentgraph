@@ -24,7 +24,9 @@ AgentGraph observes the sources that you give it access to, so that it can provi
 
 ## Connectors
 
-Connectors provide access to the services you use. AgentGraph provides a number of connectors for common services, but new connectors can also be added to allow integration with other services. You can extend AgentGraph by adding connectors for other online services and APIs.
+Connectors provide access to the services you use. AgentGraph provides a number of connectors for common services, but new connectors can also be added to allow integration with other services.
+
+You can extend AgentGraph by adding connectors for other online services and APIs.
 
 <ul class="connector-coverage">
   <li><strong>Gmail</strong><span>Email threads and participants</span></li>
