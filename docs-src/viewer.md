@@ -31,7 +31,7 @@ The right pane shows its type, content, source link, dates, and connected edges.
   <a href="/assets/viewer/selected.png"><img src="/assets/viewer/selected.png" alt="Message focused showing only its connections."></a>
 </figure>
 
-## Increase the depth to show their connected nodes
+## Increase depth to traverse to related nodes
 
 <figure class="architecture-figure architecture-figure-fit">
   <a href="/assets/viewer/collection.png"><img src="/assets/viewer/collection.png" alt="The full Atlas graph of twelve entities and labeled edges, with no node selected and the info pane closed."></a>
