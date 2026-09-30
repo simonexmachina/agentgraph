@@ -108,6 +108,19 @@ def test_build_generates_site_and_assets_with_valid_links(
     configuration_page = (output_dir / "configuration.html").read_text(encoding="utf-8")
     assert 'class="doc-grid no-toc"' in configuration_page
     assert 'aria-label="On this page"' not in configuration_page
+    nav = configuration_page.split('<nav aria-label="Documentation">', 1)[1].split(
+        "</nav>", 1
+    )[0]
+    assert '<section><h2>Development</h2>' in nav
+    assert '<h2>Configuration</h2>' not in nav
+    development_links = nav.split('<section><h2>Development</h2>', 1)[1].split(
+        "</section>", 1
+    )[0]
+    assert [
+        'href="configuration.html"',
+        'href="extending.html"',
+        'href="performance.html"',
+    ] == re.findall(r'href="[^"]+"', development_links)
 
     broken_links: list[str] = []
     for html_path in output_dir.rglob("*.html"):

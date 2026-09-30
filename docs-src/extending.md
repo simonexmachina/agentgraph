@@ -2,7 +2,7 @@
 title = "Extending"
 description = "Extend AgentGraph with custom connectors and a type-checked example implementation."
 nav_title = "Extending"
-section = "Configuration"
+section = "Development"
 order = 30
 summary = "AgentGraph can be extended with custom connectors for your own tools and integrations. This page explains the `BaseConnector` contract and links to a type-checked example."
 output = "extending.html"

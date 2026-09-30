@@ -2,7 +2,7 @@
 title = "Configuration"
 description = "Configuration directory, database settings, observation threshold, retention, and server settings."
 nav_title = "Configuration"
-section = "Configuration"
+section = "Development"
 order = 10
 summary = "AgentGraph reads settings from environment variables and from `.env` files in the config directory and the local directory."
 output = "configuration.html"
