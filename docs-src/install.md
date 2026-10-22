@@ -27,7 +27,8 @@ uv tool install 'agentgraph-server[all]'
 
 This makes the `agentgraph` command available in your shell.
 
-Or install only the connector support you need:
+<details>
+<summary>Or install only the connector support you need</summary>
 
 ```bash
 uv tool install 'agentgraph-server'
@@ -37,8 +38,17 @@ uv tool install 'agentgraph-server[discord]'
 uv tool install 'agentgraph-server[rss]'
 uv tool install 'agentgraph-server[web]'
 ```
+</details>
 
-## Start the server
+## 1. Connect sources
+
+Run guided onboarding to set up each installed connector that provides an interactive flow:
+
+```bash
+agentgraph onboard
+```
+
+## 2. Start the server
 
 Start the server in a terminal session. It keeps that terminal occupied; use another
 terminal for onboarding and other commands. See below to run it in the background.
@@ -47,21 +57,13 @@ terminal for onboarding and other commands. See below to run it in the backgroun
 agentgraph serve
 ```
 
-## Connect sources
-
-Run guided onboarding to set up each installed connector that provides an interactive flow:
-
-```bash
-agentgraph onboard
-```
-
-## Install the browser extension
+## 3. Install the browser extension
 
 Install the [AgentGraph Chrome Extension](https://chromewebstore.google.com/detail/agentgraph-extension/iilkfclglabllelhjacijldknapbhidi?authuser=0&hl=en-AU) from the Chrome Web Store.
 
 After the extension is installed, start `agentgraph serve`, then open a supported resource and keep it focused past the default three-second observation threshold.
 
-## Install the agentgraph skill
+## 4. Install the agentgraph skill
 
 The following command installs the `agentgraph` skill in `~/.agents/skills` and `~/.claude/skills`:
 
@@ -69,7 +71,7 @@ The following command installs the `agentgraph` skill in `~/.agents/skills` and 
 agentgraph install-skill
 ```
 
-## Connect an MCP client
+## 5. Connect an MCP client
 
 MCP is the recommended connection for **ChatGPT Desktop Work Mode**, **Codex**,
 **Claude Desktop**, and **Claude Code**.
@@ -95,6 +97,12 @@ screen: enter the printed executable under **Command to launch** and `mcp-serve`
 How those tools reach the graph follows
 [`AGENTGRAPH_QUERY_TRANSPORT`](configuration.html#agentgraph-query-transport): by
 default the local server when one is reachable, otherwise the database directly.
+
+## 6. Open the viewer
+
+With `agentgraph serve` running, open your local graph viewer:
+
+<p class="viewer-launch"><a class="viewer-launch-button" href="http://127.0.0.1:8765/viewer">Open AgentGraph viewer <span aria-hidden="true">→</span></a></p>
 
 ## Run in the background
 

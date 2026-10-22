@@ -225,6 +225,10 @@ body:not(.home) .doc>h1:first-child{display:none}
 .doc pre .copy.failed{background:var(--hot);border-color:var(--hot);color:var(--selection-fg);opacity:1}
 .doc blockquote{margin:1.4em 0;padding:10px 16px;border-left:3px solid var(--ecto);background:var(--accent-soft);border-radius:0 8px 8px 0;color:var(--text)}
 .doc blockquote p:last-child{margin-bottom:0}
+.viewer-launch{margin:1.4em 0 2em}
+.viewer-launch-button{display:inline-flex;align-items:center;gap:.55em;padding:.78em 1.1em;border-radius:9px;background:var(--ecto);color:var(--selection-fg);font-weight:700;box-shadow:0 8px 20px var(--glow-primary);transition:transform .15s,background .15s,box-shadow .15s}
+.viewer-launch-button:hover{background:var(--accent-strong);color:var(--selection-fg);opacity:1;text-decoration:none;transform:translateY(-1px);box-shadow:0 12px 24px var(--glow-primary)}
+.viewer-launch-button:focus-visible{outline:3px solid var(--moon);outline-offset:3px}
 .doc table{width:100%;border-collapse:collapse;margin:1.2em 0;font-size:.92em}
 .doc th,.doc td{border-bottom:1px solid var(--line);padding:9px 10px;text-align:left;vertical-align:top}
 .doc th{font-weight:600;color:var(--ink);background:var(--panel);border-bottom:1px solid var(--line)}
