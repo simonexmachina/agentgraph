@@ -73,8 +73,7 @@ agentgraph install-skill
 
 ## 5. Connect an MCP client
 
-MCP is the recommended connection for **ChatGPT Desktop Work Mode**, **Codex**,
-**Claude Desktop**, and **Claude Code**.
+MCP is the recommended connection for **Codex** and **Claude Code**.
 
 ```bash
 agentgraph mcp-config
@@ -86,13 +85,6 @@ agentgraph mcp-config
 codex mcp add agentgraph -- "$(which agentgraph)" mcp-serve
 claude mcp add --transport stdio --scope user agentgraph -- "$(which agentgraph)" mcp-serve
 ```
-
-**ChatGPT Desktop Work Mode** takes the same command through its MCP configuration
-screen: enter the printed executable under **Command to launch** and `mcp-serve` under
-**Arguments**.
-
-**Claude Desktop** reads a config file — add the printed JSON to
-`~/Library/Application Support/Claude/claude_desktop_config.json`.
 
 How those tools reach the graph follows
 [`AGENTGRAPH_QUERY_TRANSPORT`](configuration.html#agentgraph-query-transport): by
