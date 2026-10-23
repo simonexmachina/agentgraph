@@ -104,7 +104,7 @@ and ingest locally when it cannot queue them on the local server.
 Run ordinary reads with the default transport. To diagnose connectivity, use
 `AGENTGRAPH_QUERY_TRANSPORT=server agentgraph search x --limit 1`; retry an affected
 read with `AGENTGRAPH_QUERY_TRANSPORT=in-process` only after an actual sandbox
-connection failure. See the Coding agent sandboxes section of the configuration docs
+connection failure. See the AI agent sandboxes section of the configuration docs
 for Unix-socket allowlist settings.
 
 ```bash
