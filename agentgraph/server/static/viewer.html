@@ -1122,6 +1122,10 @@
           <div><dt><kbd>/</kbd></dt><dd>Focus search</dd></div>
           <div><dt><kbd>i</kbd></dt><dd>Show or hide entity details</dd></div>
         </dl>
+        <p class="shortcut-intro">And this one while working in the graph.</p>
+        <dl class="shortcut-list">
+          <div><dt><kbd>⌥ Alt</kbd> + drag</dt><dd>Move a node with its connected nodes</dd></div>
+        </dl>
       </div>
     </template>
   </div>
@@ -2851,6 +2855,50 @@
   cy.on('dbltap', 'node', (evt) => {
     const node = evt.target;
     focusNode(node.data('id'));
+  });
+
+  // ── Option-drag: carry directly connected nodes along ─────────────────────
+  // Cytoscape's `grab` event carries no originating mouse event, so the
+  // modifier is read from the pointer press that starts the drag.
+  let altKeyAtPress = false;
+  let groupDrag = null;
+
+  cy.container().addEventListener('mousedown', (evt) => {
+    altKeyAtPress = evt.altKey;
+  }, true);
+
+  cy.on('grab', 'node', (evt) => {
+    if (!altKeyAtPress) return;
+    const node = evt.target;
+    // A grabbed node that is selected already drags the rest of the selection,
+    // so those nodes must not be moved twice.
+    const movedBySelection = node.selected() ? cy.nodes(':selected') : cy.collection();
+    const followers = node.openNeighborhood('node').difference(movedBySelection);
+    if (followers.empty()) return;
+    const starts = new Map();
+    followers.forEach((follower) => {
+      const { x, y } = follower.position();
+      starts.set(follower.id(), { x, y });
+    });
+    const { x, y } = node.position();
+    groupDrag = { node, followers, starts, origin: { x, y } };
+  });
+
+  cy.on('drag', 'node', (evt) => {
+    if (!groupDrag || evt.target !== groupDrag.node) return;
+    const current = groupDrag.node.position();
+    const dx = current.x - groupDrag.origin.x;
+    const dy = current.y - groupDrag.origin.y;
+    cy.batch(() => {
+      groupDrag.followers.forEach((follower) => {
+        const start = groupDrag.starts.get(follower.id());
+        if (start) follower.position({ x: start.x + dx, y: start.y + dy });
+      });
+    });
+  });
+
+  cy.on('free', 'node', () => {
+    groupDrag = null;
   });
 
   cy.on('tap', (evt) => {

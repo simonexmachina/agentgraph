@@ -31,6 +31,11 @@ The right pane shows its type, content, source link, dates, and connected edges.
   <a href="/assets/viewer/selected.png"><img src="/assets/viewer/selected.png" alt="Message focused showing only its connections."></a>
 </figure>
 
+## Drag a node with its connections
+
+Dragging a node moves it on its own. Hold <kbd>Option</kbd> (<kbd>Alt</kbd>) while dragging to
+bring its directly connected nodes along, keeping a cluster together as you rearrange the graph.
+
 ## Increase depth to traverse to related nodes
 
 <figure class="architecture-figure architecture-figure-fit">

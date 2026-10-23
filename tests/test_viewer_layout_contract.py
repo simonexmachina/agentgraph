@@ -725,6 +725,114 @@ def test_selection_and_hover_do_not_move_graph_geometry(page: Page) -> None:
     assert after == before
 
 
+def _node_positions(page: Page) -> dict[str, dict[str, float]]:
+    return page.evaluate(
+        """() => Object.fromEntries(window.__agentGraphViewer.cy.nodes().map(
+          node => [node.id(), { x: node.position().x, y: node.position().y }],
+        ))"""
+    )
+
+
+def _drag_node(page: Page, node_id: str, dx: float, dy: float, *, alt: bool) -> None:
+    canvas = page.locator("#cy").bounding_box()
+    assert canvas is not None
+    start = page.evaluate(
+        "id => window.__agentGraphViewer.cy.getElementById(id).renderedPosition()",
+        node_id,
+    )
+    page.mouse.move(canvas["x"] + start["x"], canvas["y"] + start["y"])
+    if alt:
+        page.keyboard.down("Alt")
+    try:
+        page.mouse.down()
+        page.mouse.move(canvas["x"] + start["x"] + dx, canvas["y"] + start["y"] + dy, steps=10)
+        page.mouse.up()
+    finally:
+        if alt:
+            page.keyboard.up("Alt")
+
+
+def _chain_graph() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """node-0 joined to node-1 and node-2, node-2 joined on to node-3, node-4 loose."""
+    nodes = [_node(index, f"Node {index}") for index in range(5)]
+    pairs = [("node-0", "node-1"), ("node-0", "node-2"), ("node-2", "node-3")]
+    edges = [
+        {
+            "id": f"edge-{index}",
+            "source_entity_id": source,
+            "target_entity_id": target,
+            "edge_type": "contains",
+        }
+        for index, (source, target) in enumerate(pairs)
+    ]
+    return nodes, edges
+
+
+def test_option_drag_carries_connected_nodes_with_the_dragged_node(page: Page) -> None:
+    nodes, edges = _chain_graph()
+    with _serve_viewer(nodes, edges) as url:
+        _wait_for_graph(page, url, len(nodes))
+        before = _node_positions(page)
+        _drag_node(page, "node-0", 120, 80, alt=True)
+        after = _node_positions(page)
+
+    moved = {
+        node_id: (after[node_id]["x"] - before[node_id]["x"], after[node_id]["y"] - before[node_id]["y"])
+        for node_id in before
+    }
+    dragged = moved["node-0"]
+    assert dragged[0] > 1 and dragged[1] > 1, f"the grabbed node did not move: {dragged}"
+    # Direct neighbours travel with it, by the same delta.
+    assert moved["node-1"] == pytest.approx(dragged, abs=0.5)
+    assert moved["node-2"] == pytest.approx(dragged, abs=0.5)
+    # Nodes that are not directly connected stay put.
+    assert moved["node-3"] == pytest.approx((0.0, 0.0), abs=0.5)
+    assert moved["node-4"] == pytest.approx((0.0, 0.0), abs=0.5)
+
+
+def test_drag_without_option_moves_only_the_dragged_node(page: Page) -> None:
+    nodes, edges = _chain_graph()
+    with _serve_viewer(nodes, edges) as url:
+        _wait_for_graph(page, url, len(nodes))
+        before = _node_positions(page)
+        _drag_node(page, "node-0", 120, 80, alt=False)
+        after = _node_positions(page)
+
+    moved = {
+        node_id: (after[node_id]["x"] - before[node_id]["x"], after[node_id]["y"] - before[node_id]["y"])
+        for node_id in before
+    }
+    assert moved["node-0"][0] > 1 and moved["node-0"][1] > 1
+    for node_id in ("node-1", "node-2", "node-3", "node-4"):
+        assert moved[node_id] == pytest.approx((0.0, 0.0), abs=0.5)
+
+
+def test_option_drag_does_not_double_move_a_selected_neighbour(page: Page) -> None:
+    nodes, edges = _chain_graph()
+    with _serve_viewer(nodes, edges) as url:
+        _wait_for_graph(page, url, len(nodes))
+        # Cytoscape drags the whole selection when a selected node is grabbed.
+        page.evaluate(
+            """() => {
+              const cy = window.__agentGraphViewer.cy;
+              cy.getElementById('node-0').select();
+              cy.getElementById('node-1').select();
+            }"""
+        )
+        before = _node_positions(page)
+        _drag_node(page, "node-0", 120, 80, alt=True)
+        after = _node_positions(page)
+
+    moved = {
+        node_id: (after[node_id]["x"] - before[node_id]["x"], after[node_id]["y"] - before[node_id]["y"])
+        for node_id in before
+    }
+    dragged = moved["node-0"]
+    assert dragged[0] > 1 and dragged[1] > 1
+    assert moved["node-1"] == pytest.approx(dragged, abs=0.5)
+    assert moved["node-2"] == pytest.approx(dragged, abs=0.5)
+
+
 def test_hover_card_hides_when_pointer_enters_detail_panel(page: Page) -> None:
     nodes = [_node(1, "Hover target")]
     with _serve_viewer(nodes, []) as url:
