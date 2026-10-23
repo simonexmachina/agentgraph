@@ -104,6 +104,11 @@ long-lived, it resolves the transport once and keeps it; if the server it was us
 stops, the next tool call re-resolves and `auto` falls back to in-process without the
 MCP server needing a restart.
 
+This covers every MCP client registered in [Install](/install.html#5-connect-an-mcp-client),
+because each one launches `agentgraph mcp-serve`. Under the `auto` default their tool
+calls read through the local server while one is reachable, and from the database
+directly when it is not.
+
 ### `AGENTGRAPH_SERVER_CONNECT_TIMEOUT_SECONDS`
 
 Default: `0.2`

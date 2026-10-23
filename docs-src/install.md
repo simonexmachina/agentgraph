@@ -86,10 +86,6 @@ codex mcp add agentgraph -- "$(which agentgraph)" mcp-serve
 claude mcp add --transport stdio --scope user agentgraph -- "$(which agentgraph)" mcp-serve
 ```
 
-How those tools reach the graph follows
-[`AGENTGRAPH_QUERY_TRANSPORT`](configuration.html#agentgraph-query-transport): by
-default the local server when one is reachable, otherwise the database directly.
-
 ## 6. Open the viewer
 
 With `agentgraph serve` running, open your local graph viewer:
