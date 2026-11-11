@@ -10,9 +10,12 @@ source_path = "docs-src/index.md"
 +++
 
 ## A perception layer for AI agents
-AgentGraph is a local-first, self-hosted CLI and MCP server that turns the sources you choose into a graph of messages, documents, people, feeds, pages, and relationships that your agent can use for reasoning.
 
-AgentGraph observes the sources that you give it access to, so that it can provide your AI agents with the context they need.
+AgentGraph is a perception layer for your online context: it builds a local graph from your online sources so your agents can see your digital world. 
+
+It's a local-first, self-hosted CLI and MCP server that turns the sources you choose into a graph of messages, documents, people, feeds, pages, and relationships that your agent can use for reasoning.
+
+AgentGraph observes the sources that you give it access to, so your AI agents have searchable, inspectable, and navigable context about your digital world.
 
 <div class="perception-flow" role="img" aria-label="Selected sources flow through connectors into a local AgentGraph, which an existing coding agent can search and traverse through MCP or the CLI.">
   <div><strong>Selected sources</strong><span>Gmail, Drive, Slack, Discord, RSS, Web</span></div>
