@@ -2,6 +2,8 @@
 
 **Give the AI agent you already use a searchable world.**
 
+[![AgentGraph on StartupScores](https://startupscores.com/badge/agentgraph.svg?style=shield&v=combo&theme=dark)](https://startupscores.com/open-source/agentgraph)
+
 AgentGraph is a local-first, self-hosted CLI and MCP server that turns the sources you choose into a searchable graph for the AI agent you already use. Connect Gmail, Google Drive, Slack, Discord, RSS, and web pages; AgentGraph translates them into local entities, people, relationships, and searchable content.
 
 > **AgentGraph stores context; your agent reasons over it.** It is not an agent, chatbot, hosted graph service, or replacement for the tools you already use.
