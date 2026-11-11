@@ -384,7 +384,7 @@ def build_page(page: Page, pages: list[Page], index: int, nav_html: str) -> str:
     description = html.escape(page.meta.description, quote=True)
     body_class = "home" if page.meta.output_path == Path("index.html") else ""
     document_title = (
-        "AgentGraph - The perception layer for coding agents"
+        "AgentGraph - Local context for AI agents"
         if body_class == "home"
         else f"{title} - AgentGraph"
     )
