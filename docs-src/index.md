@@ -9,7 +9,7 @@ output = "index.html"
 source_path = "docs-src/index.md"
 +++
 
-## A perception layer for AI agents
+## Perception layer for AI agents
 
 AgentGraph is a perception layer for your online context: it builds a local graph from your online sources so your agents can see your digital world. 
 
